@@ -1,0 +1,366 @@
+﻿ID;Modalitat;Prioritat;Colla_ID;anys_sense_captura;Parroquia;Estranger
+HUNT_000;;2;;1;Escaldes-Engordany;No
+HUNT_001;;2;;1;Escaldes-Engordany;No
+HUNT_002;;2;;1;Canillo;No
+HUNT_003;;2;;1;La Massana;No
+HUNT_004;;2;;1;Andorra la Vella;Si
+HUNT_005;;4;;0;Canillo;No
+HUNT_006;;4;;0;Encamp;No
+HUNT_007;;4;;0;Encamp;No
+HUNT_008;;4;;0;Canillo;NO
+HUNT_009;;2;;1;Escaldes-Engordany;sí
+HUNT_010;;4;;0;Encamp;No
+HUNT_011;;2;;1;Sant Julià de Lòria;No
+HUNT_012;;2;;1;Sant Julià de Lòria;No
+HUNT_013;;2;;1;Canillo;Si
+HUNT_014;;4;;0;Andorra la Vella;No
+HUNT_015;;2;;1;Andorra la Vella;NO
+HUNT_016;;2;;1;Canillo;No
+HUNT_017;;2;;1;Andorra la Vella;No
+HUNT_018;;4;;0;Escaldes-Engordany;No
+HUNT_019;;2;;1;Escaldes-Engordany;No
+HUNT_020;A;4;Colla_2;0;Andorra la Vella;No
+HUNT_021;A;2;Colla_2;1;Sant Julià de Lòria;NO
+HUNT_022;A;2;Colla_2;1;Andorra la Vella;No
+HUNT_023;A;2;Colla_2;1;Escaldes-Engordany;NO
+HUNT_024;A;4;Colla_2;0;Ordino;NO
+HUNT_025;A;4;Colla_2;0;La Massana;No
+HUNT_026;A;2;Colla_2;1;Encamp;No
+HUNT_027;A;4;Colla_2;0;Ordino;No
+HUNT_028;A;2;Colla_2;1;Andorra la Vella;Si
+HUNT_029;A;2;Colla_2;1;Sant Julià de Lòria;No
+HUNT_030;A;4;Colla_2;0;Canillo;sí
+HUNT_031;A;4;Colla_2;0;Andorra la Vella;No
+HUNT_032;A;2;Colla_2;1;Sant Julià de Lòria;No
+HUNT_033;A;2;Colla_2;1;La Massana;NO
+HUNT_034;A;2;Colla_2;1;Andorra la Vella;Si
+HUNT_035;A;4;Colla_2;0;Escaldes-Engordany;NO
+HUNT_036;A;2;Colla_2;1;Canillo;No
+HUNT_037;A;2;Colla_2;1;Sant Julià de Lòria;No
+HUNT_038;A;2;Colla_2;1;Sant Julià de Lòria;sí
+HUNT_039;A;2;Colla_2;1;Sant Julià de Lòria;No
+HUNT_040;A;4;Colla_3;0;La Massana;NO
+HUNT_041;A;2;Colla_3;1;Andorra la Vella;no
+HUNT_042;A;2;Colla_3;1;La Massana;NO
+HUNT_043;A;2;Colla_3;1;Encamp;No
+HUNT_044;A;2;Colla_3;1;Encamp;No
+HUNT_045;A;2;Colla_3;1;Andorra la Vella;SÍ
+HUNT_046;A;4;Colla_3;0;Escaldes-Engordany;NO
+HUNT_047;A;4;Colla_3;0;La Massana;NO
+HUNT_048;A;2;Colla_3;1;Canillo;No
+HUNT_049;A;4;Colla_3;0;Sant Julià de Lòria;No
+HUNT_050;A;4;Colla_3;0;Escaldes-Engordany;No
+HUNT_051;A;2;Colla_3;1;Escaldes-Engordany;No
+HUNT_052;A;2;Colla_3;1;Canillo;No
+HUNT_053;A;4;Colla_3;0;La Massana;No
+HUNT_054;A;2;Colla_3;1;Andorra la Vella;Si
+HUNT_055;A;4;Colla_3;0;Canillo;No
+HUNT_056;A;2;Colla_3;1;Encamp;No
+HUNT_057;A;2;Colla_3;1;Encamp;No
+HUNT_058;A;2;Colla_3;1;Canillo;NO
+HUNT_059;A;4;Colla_4;0;Escaldes-Engordany;sí
+HUNT_060;A;4;Colla_4;0;Encamp;No
+HUNT_061;A;2;Colla_4;1;Sant Julià de Lòria;No
+HUNT_062;A;4;Colla_4;0;Sant Julià de Lòria;No
+HUNT_063;A;4;Colla_4;0;Canillo;Si
+HUNT_064;A;2;Colla_4;1;Andorra la Vella;No
+HUNT_065;A;4;Colla_4;0;Andorra la Vella;NO
+HUNT_066;A;2;Colla_4;1;Canillo;No
+HUNT_067;A;2;Colla_4;1;Andorra la Vella;No
+HUNT_068;A;2;Colla_4;1;Escaldes-Engordany;No
+HUNT_069;A;2;Colla_4;1;Escaldes-Engordany;No
+HUNT_070;A;2;Colla_4;1;Andorra la Vella;No
+HUNT_071;A;4;Colla_4;0;Sant Julià de Lòria;NO
+HUNT_072;A;2;Colla_4;1;Andorra la Vella;No
+HUNT_073;A;2;Colla_4;1;Escaldes-Engordany;NO
+HUNT_074;A;2;Colla_4;1;Ordino;NO
+HUNT_075;A;2;Colla_5;1;La Massana;No
+HUNT_076;A;2;Colla_5;1;Encamp;No
+HUNT_077;A;2;Colla_5;1;Ordino;No
+HUNT_078;A;2;Colla_5;1;Andorra la Vella;Si
+HUNT_079;A;4;Colla_5;0;Sant Julià de Lòria;No
+HUNT_080;A;4;Colla_5;0;Canillo;sí
+HUNT_081;A;2;Colla_5;1;Andorra la Vella;No
+HUNT_082;A;4;Colla_5;0;Sant Julià de Lòria;No
+HUNT_083;A;4;Colla_5;0;La Massana;NO
+HUNT_084;A;4;Colla_5;0;Andorra la Vella;Si
+HUNT_085;A;2;Colla_5;1;Escaldes-Engordany;NO
+HUNT_086;A;2;Colla_5;1;Canillo;No
+HUNT_087;A;4;Colla_5;0;Sant Julià de Lòria;No
+HUNT_088;A;2;Colla_5;1;Sant Julià de Lòria;sí
+HUNT_089;A;2;Colla_5;1;Sant Julià de Lòria;No
+HUNT_090;A;2;Colla_6;1;La Massana;NO
+HUNT_091;A;4;Colla_6;0;Andorra la Vella;no
+HUNT_092;A;2;Colla_6;1;La Massana;NO
+HUNT_093;A;4;Colla_6;0;Encamp;No
+HUNT_094;A;4;Colla_6;0;Encamp;No
+HUNT_095;A;4;Colla_6;0;Andorra la Vella;SÍ
+HUNT_096;A;2;Colla_6;1;Escaldes-Engordany;NO
+HUNT_097;A;2;Colla_6;1;La Massana;NO
+HUNT_098;A;2;Colla_6;1;Canillo;No
+HUNT_099;A;4;Colla_6;0;Sant Julià de Lòria;No
+HUNT_100;A;4;Colla_6;0;Escaldes-Engordany;No
+HUNT_101;A;2;Colla_6;1;Escaldes-Engordany;No
+HUNT_102;A;2;Colla_6;1;Canillo;No
+HUNT_103;A;2;Colla_6;1;La Massana;No
+HUNT_104;A;2;Colla_6;1;Andorra la Vella;Si
+HUNT_105;A;2;Colla_7;1;Canillo;No
+HUNT_106;A;2;Colla_7;1;Encamp;No
+HUNT_107;A;2;Colla_7;1;Encamp;No
+HUNT_108;A;4;Colla_7;0;Canillo;NO
+HUNT_109;A;2;Colla_7;1;Escaldes-Engordany;sí
+HUNT_110;A;4;Colla_7;0;Encamp;No
+HUNT_111;A;4;Colla_7;0;Sant Julià de Lòria;No
+HUNT_112;A;2;Colla_7;1;Sant Julià de Lòria;No
+HUNT_113;A;2;Colla_7;1;Canillo;Si
+HUNT_114;A;2;Colla_7;1;Andorra la Vella;No
+HUNT_115;A;4;Colla_7;0;Andorra la Vella;NO
+HUNT_116;A;4;Colla_7;0;Canillo;No
+HUNT_117;A;2;Colla_8;1;Andorra la Vella;No
+HUNT_118;A;2;Colla_8;1;Escaldes-Engordany;No
+HUNT_119;A;2;Colla_8;1;Escaldes-Engordany;No
+HUNT_120;A;2;Colla_8;1;Andorra la Vella;No
+HUNT_121;A;4;Colla_8;0;Sant Julià de Lòria;NO
+HUNT_122;A;2;Colla_8;1;Andorra la Vella;No
+HUNT_123;A;4;Colla_8;0;Escaldes-Engordany;NO
+HUNT_124;A;2;Colla_8;1;Ordino;NO
+HUNT_125;A;4;Colla_8;0;La Massana;No
+HUNT_126;A;4;Colla_8;0;Encamp;No
+HUNT_127;A;2;Colla_9;1;Ordino;No
+HUNT_128;A;4;Colla_9;0;Andorra la Vella;Si
+HUNT_129;A;2;Colla_9;1;Sant Julià de Lòria;No
+HUNT_130;A;2;Colla_9;1;Canillo;sí
+HUNT_131;A;4;Colla_9;0;Andorra la Vella;No
+HUNT_132;A;4;Colla_9;0;Sant Julià de Lòria;No
+HUNT_133;A;2;Colla_9;1;La Massana;NO
+HUNT_134;A;2;Colla_9;1;Andorra la Vella;Si
+HUNT_135;A;4;Colla_9;0;Escaldes-Engordany;NO
+HUNT_136;A;4;Colla_10;0;Canillo;No
+HUNT_137;A;4;Colla_10;0;Sant Julià de Lòria;No
+HUNT_138;A;2;Colla_10;1;Sant Julià de Lòria;sí
+HUNT_139;A;4;Colla_10;0;Sant Julià de Lòria;No
+HUNT_140;A;2;Colla_10;1;La Massana;NO
+HUNT_141;A;4;Colla_10;0;Andorra la Vella;no
+HUNT_142;A;2;Colla_10;1;La Massana;NO
+HUNT_143;A;2;Colla_10;1;Encamp;No
+HUNT_144;A;2;Colla_10;1;Encamp;No
+HUNT_145;A;4;Colla_11;0;Andorra la Vella;SÍ
+HUNT_146;A;2;Colla_11;1;Escaldes-Engordany;NO
+HUNT_147;A;4;Colla_11;0;La Massana;NO
+HUNT_148;A;2;Colla_11;1;Canillo;No
+HUNT_149;A;2;Colla_11;1;Sant Julià de Lòria;No
+HUNT_150;A;4;Colla_11;0;Escaldes-Engordany;No
+HUNT_151;A;2;Colla_12;1;Escaldes-Engordany;No
+HUNT_152;A;4;Colla_12;0;Canillo;No
+HUNT_153;A;2;Colla_12;1;La Massana;No
+HUNT_154;A;4;Colla_12;0;Andorra la Vella;Si
+HUNT_155;A;4;Colla_12;0;Canillo;No
+HUNT_156;A;2;Colla_12;1;Encamp;No
+HUNT_157;A;2;Colla_13;1;Encamp;No
+HUNT_158;A;4;Colla_13;0;Canillo;NO
+HUNT_159;A;2;Colla_13;1;Escaldes-Engordany;sí
+HUNT_160;A;4;Colla_13;0;Encamp;No
+HUNT_161;A;2;Colla_13;1;Sant Julià de Lòria;No
+HUNT_162;A;4;Colla_13;0;Sant Julià de Lòria;No
+HUNT_163;A;4;Colla_14;0;Canillo;Si
+HUNT_164;A;2;Colla_14;1;Andorra la Vella;No
+HUNT_165;A;2;Colla_14;1;Andorra la Vella;NO
+HUNT_166;A;2;Colla_14;1;Canillo;No
+HUNT_167;A;4;Colla_14;0;Andorra la Vella;No
+HUNT_168;A;4;Colla_14;0;Escaldes-Engordany;No
+HUNT_169;A;2;Colla_15;1;Escaldes-Engordany;No
+HUNT_170;A;2;Colla_15;1;Andorra la Vella;No
+HUNT_171;A;4;Colla_15;0;Sant Julià de Lòria;NO
+HUNT_172;A;4;Colla_15;0;Andorra la Vella;No
+HUNT_173;A;4;Colla_15;0;Escaldes-Engordany;NO
+HUNT_174;A;2;Colla_15;1;Ordino;NO
+HUNT_175;B;2;;1;La Massana;No
+HUNT_176;B;4;;0;Encamp;No
+HUNT_177;B;4;;0;Ordino;No
+HUNT_178;B;2;;1;Andorra la Vella;Si
+HUNT_179;B;2;;1;Sant Julià de Lòria;No
+HUNT_180;B;2;;1;Canillo;sí
+HUNT_181;B;2;;1;Andorra la Vella;No
+HUNT_182;B;4;;0;Sant Julià de Lòria;No
+HUNT_183;B;2;;1;La Massana;NO
+HUNT_184;B;2;;1;Andorra la Vella;Si
+HUNT_185;B;4;;0;Escaldes-Engordany;NO
+HUNT_186;B;2;;1;Canillo;No
+HUNT_187;B;4;;0;Sant Julià de Lòria;No
+HUNT_188;B;4;;0;Sant Julià de Lòria;sí
+HUNT_189;B;4;;0;Sant Julià de Lòria;No
+HUNT_190;B;4;;0;La Massana;NO
+HUNT_191;B;4;;0;Andorra la Vella;no
+HUNT_192;B;4;;0;La Massana;NO
+HUNT_193;B;2;;1;Encamp;No
+HUNT_194;B;2;;1;Encamp;No
+HUNT_195;B;4;;0;Andorra la Vella;SÍ
+HUNT_196;B;2;;1;Escaldes-Engordany;NO
+HUNT_197;B;2;;1;La Massana;NO
+HUNT_198;B;4;;0;Canillo;No
+HUNT_199;B;2;;1;Sant Julià de Lòria;No
+HUNT_200;B;4;;0;Escaldes-Engordany;No
+HUNT_201;B;2;;1;Escaldes-Engordany;No
+HUNT_202;B;4;;0;Canillo;No
+HUNT_203;B;2;;1;La Massana;No
+HUNT_204;B;2;;1;Andorra la Vella;Si
+HUNT_205;B;2;;1;Canillo;No
+HUNT_206;B;2;;1;Encamp;No
+HUNT_207;B;4;;0;Encamp;No
+HUNT_208;B;4;;0;Canillo;NO
+HUNT_209;B;2;;1;Escaldes-Engordany;sí
+HUNT_210;B;2;;1;Encamp;No
+HUNT_211;B;2;;1;Sant Julià de Lòria;No
+HUNT_212;B;4;;0;Sant Julià de Lòria;No
+HUNT_213;B;2;;1;Canillo;Si
+HUNT_214;B;2;;1;Andorra la Vella;No
+HUNT_215;B;2;;1;Andorra la Vella;NO
+HUNT_216;B;4;;0;Canillo;No
+HUNT_217;B;2;;1;Andorra la Vella;No
+HUNT_218;B;2;;1;Escaldes-Engordany;No
+HUNT_219;B;4;;0;Escaldes-Engordany;No
+HUNT_220;B;2;;1;Andorra la Vella;No
+HUNT_221;B;4;;0;Sant Julià de Lòria;NO
+HUNT_222;B;2;;1;Andorra la Vella;No
+HUNT_223;B;4;;0;Escaldes-Engordany;NO
+HUNT_224;B;2;;1;Ordino;NO
+HUNT_225;B;2;;1;La Massana;No
+HUNT_226;B;2;;1;Encamp;No
+HUNT_227;B;4;;0;Ordino;No
+HUNT_228;B;4;;0;Andorra la Vella;Si
+HUNT_229;B;2;;1;Sant Julià de Lòria;No
+HUNT_230;B;2;;1;Canillo;sí
+HUNT_231;B;2;;1;Andorra la Vella;No
+HUNT_232;B;4;;0;Sant Julià de Lòria;No
+HUNT_233;B;4;;0;La Massana;NO
+HUNT_234;B;2;;1;Andorra la Vella;Si
+HUNT_235;B;2;;1;Escaldes-Engordany;NO
+HUNT_236;B;2;;1;Canillo;No
+HUNT_237;B;4;;0;Sant Julià de Lòria;No
+HUNT_238;B;4;;0;Sant Julià de Lòria;sí
+HUNT_239;B;2;;1;Sant Julià de Lòria;No
+HUNT_240;B;2;;1;La Massana;NO
+HUNT_241;B;2;;1;Andorra la Vella;no
+HUNT_242;B;2;;1;La Massana;NO
+HUNT_243;B;2;;1;Encamp;No
+HUNT_244;B;2;;1;Encamp;No
+HUNT_245;B;4;;0;Andorra la Vella;SÍ
+HUNT_246;B;4;;0;Escaldes-Engordany;NO
+HUNT_247;B;4;;0;La Massana;NO
+HUNT_248;B;2;;1;Canillo;No
+HUNT_249;B;4;;0;Sant Julià de Lòria;No
+HUNT_250;B;2;;1;Escaldes-Engordany;No
+HUNT_251;B;4;;0;Escaldes-Engordany;No
+HUNT_252;B;2;;1;Canillo;No
+HUNT_253;B;4;;0;La Massana;No
+HUNT_254;B;2;;1;Andorra la Vella;Si
+HUNT_255;B;2;;1;Canillo;No
+HUNT_256;B;4;;0;Encamp;No
+HUNT_257;B;2;;1;Encamp;No
+HUNT_258;B;2;;1;Canillo;NO
+HUNT_259;B;4;;0;Escaldes-Engordany;sí
+HUNT_260;B;2;;1;Encamp;No
+HUNT_261;B;4;;0;Sant Julià de Lòria;No
+HUNT_262;B;4;;0;Sant Julià de Lòria;No
+HUNT_263;B;2;;1;Canillo;Si
+HUNT_264;B;4;;0;Andorra la Vella;No
+HUNT_265;B;2;;1;Andorra la Vella;NO
+HUNT_266;B;2;;1;Canillo;No
+HUNT_267;B;2;;1;Andorra la Vella;No
+HUNT_268;B;2;;1;Escaldes-Engordany;No
+HUNT_269;B;2;;1;Escaldes-Engordany;No
+HUNT_270;B;4;;0;Andorra la Vella;No
+HUNT_271;B;4;;0;Sant Julià de Lòria;NO
+HUNT_272;B;2;;1;Andorra la Vella;No
+HUNT_273;B;4;;0;Escaldes-Engordany;NO
+HUNT_274;B;2;;1;Ordino;NO
+HUNT_275;B;2;;1;La Massana;No
+HUNT_276;B;2;;1;Encamp;No
+HUNT_277;B;4;;0;Ordino;No
+HUNT_278;B;4;;0;Andorra la Vella;Si
+HUNT_279;B;2;;1;Sant Julià de Lòria;No
+HUNT_280;B;2;;1;Canillo;sí
+HUNT_281;B;2;;1;Andorra la Vella;No
+HUNT_282;B;4;;0;Sant Julià de Lòria;No
+HUNT_283;B;2;;1;La Massana;NO
+HUNT_284;B;2;;1;Andorra la Vella;Si
+HUNT_285;B;4;;0;Escaldes-Engordany;NO
+HUNT_286;B;2;;1;Canillo;No
+HUNT_287;B;2;;1;Sant Julià de Lòria;No
+HUNT_288;B;2;;1;Sant Julià de Lòria;sí
+HUNT_289;B;4;;0;Sant Julià de Lòria;No
+HUNT_290;B;4;;0;La Massana;NO
+HUNT_291;B;4;;0;Andorra la Vella;no
+HUNT_292;B;2;;1;La Massana;NO
+HUNT_293;B;4;;0;Encamp;No
+HUNT_294;B;4;;0;Encamp;No
+HUNT_295;B;2;;1;Andorra la Vella;SÍ
+HUNT_296;B;4;;0;Escaldes-Engordany;NO
+HUNT_297;B;4;;0;La Massana;NO
+HUNT_298;B;2;;1;Canillo;No
+HUNT_299;B;2;;1;Sant Julià de Lòria;No
+HUNT_300;B;4;;0;Escaldes-Engordany;No
+HUNT_301;B;2;;1;Escaldes-Engordany;No
+HUNT_302;B;2;;1;Canillo;No
+HUNT_303;B;4;;0;La Massana;No
+HUNT_304;B;4;;0;Andorra la Vella;Si
+HUNT_305;B;2;;1;Canillo;No
+HUNT_306;B;2;;1;Encamp;No
+HUNT_307;B;2;;1;Encamp;No
+HUNT_308;B;2;;1;Canillo;NO
+HUNT_309;B;4;;0;Escaldes-Engordany;sí
+HUNT_310;B;2;;1;Encamp;No
+HUNT_311;B;2;;1;Sant Julià de Lòria;No
+HUNT_312;B;2;;1;Sant Julià de Lòria;No
+HUNT_313;B;2;;1;Canillo;Si
+HUNT_314;B;2;;1;Andorra la Vella;No
+HUNT_315;B;2;;1;Andorra la Vella;NO
+HUNT_316;B;2;;1;Canillo;No
+HUNT_317;B;2;;1;Andorra la Vella;No
+HUNT_318;B;4;;0;Escaldes-Engordany;No
+HUNT_319;B;4;;0;Escaldes-Engordany;No
+HUNT_320;B;2;;1;Andorra la Vella;No
+HUNT_321;B;2;;1;Sant Julià de Lòria;NO
+HUNT_322;B;2;;1;Andorra la Vella;No
+HUNT_323;B;2;;1;Escaldes-Engordany;NO
+HUNT_324;B;4;;0;Ordino;NO
+HUNT_325;B;2;;1;La Massana;No
+HUNT_326;B;4;;0;Encamp;No
+HUNT_327;B;4;;0;Ordino;No
+HUNT_328;B;4;;0;Andorra la Vella;Si
+HUNT_329;B;2;;1;Sant Julià de Lòria;No
+HUNT_330;B;2;;1;Canillo;sí
+HUNT_331;B;2;;1;Andorra la Vella;No
+HUNT_332;B;4;;0;Sant Julià de Lòria;No
+HUNT_333;B;4;;0;La Massana;NO
+HUNT_334;B;2;;1;Andorra la Vella;Si
+HUNT_335;B;2;;1;Escaldes-Engordany;NO
+HUNT_336;B;4;;0;Canillo;No
+HUNT_337;B;4;;0;Sant Julià de Lòria;No
+HUNT_338;B;2;;1;Sant Julià de Lòria;sí
+HUNT_339;B;4;;0;Sant Julià de Lòria;No
+HUNT_340;B;2;;1;La Massana;NO
+HUNT_341;B;2;;1;Andorra la Vella;no
+HUNT_342;B;3;;0;La Massana;NO
+HUNT_343;B;3;;0;Encamp;No
+HUNT_344;B;3;;0;Encamp;No
+HUNT_345;B;3;;0;Andorra la Vella;SÍ
+HUNT_346;B;3;;0;Escaldes-Engordany;NO
+HUNT_347;B;3;;0;La Massana;NO
+HUNT_348;B;3;;0;Canillo;No
+HUNT_349;B;3;;0;Sant Julià de Lòria;No
+HUNT_350;B;3;;0;Escaldes-Engordany;No
+HUNT_351;B;3;;0;Escaldes-Engordany;No
+HUNT_352;B;3;;0;Canillo;No
+HUNT_353;B;3;;0;La Massana;No
+HUNT_354;B;3;;0;Andorra la Vella;Si
+HUNT_355;B;3;;0;Canillo;No
+HUNT_356;B;3;;0;Encamp;No
+HUNT_357;B;3;;0;Encamp;No
+HUNT_358;B;3;;0;Canillo;NO
+HUNT_359;B;3;;0;Escaldes-Engordany;sí
+HUNT_360;B;3;;0;Encamp;No
+HUNT_361;B;3;;0;Sant Julià de Lòria;No
+HUNT_362;B;3;;0;Sant Julià de Lòria;No
+HUNT_363;B;3;;0;Canillo;Si
+HUNT_364;B;3;;0;Andorra la Vella;No
