@@ -1,8 +1,4 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from streamlit_option_menu import option_menu
 import unicodedata
 import math
 
@@ -73,6 +69,7 @@ def normalize_parroquia(value):
 
 
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    import pandas as pd
     mapping = {}
     for col in df.columns:
         key = strip_accents(col).lower().replace(" ", "_")
@@ -111,6 +108,7 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_data
 def build_summaries(resultat_df: pd.DataFrame, resums_list: list[pd.DataFrame]):
+    import pandas as pd
     if resums_list:
         summary = pd.concat(resums_list, ignore_index=True)
         summary = standardize_columns(summary)
@@ -153,6 +151,7 @@ def recalc_filtered_summaries(
     data: pd.DataFrame, sorteigs: list[str], prev_totals: pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Recalculate totals and details from the filtered participant rows."""
+    import pandas as pd
     rows_tot, rows_det = [], []
     for s in sorteigs:
         base = s.replace(" ", "_")
@@ -189,6 +188,9 @@ def recalc_filtered_summaries(
 
 
 def plot_main_chart(totals: pd.DataFrame, details: pd.DataFrame):
+    import pandas as pd
+    import numpy as np
+    import plotly.graph_objects as go
     sorteigs = totals["Sorteig"]
     pivot = details.pivot_table(
         index="Sorteig", columns="Tipus", values="Assignacions_finals", fill_value=0
@@ -253,11 +255,12 @@ def plot_main_chart(totals: pd.DataFrame, details: pd.DataFrame):
     )
     return fig
 
-
 def plot_drill(
     assign_data: pd.DataFrame, dim: str, app_data: pd.DataFrame | None = None
 ):
     """Return a breakdown chart with bars for assignments and lines for applications."""
+    import pandas as pd
+    import plotly.graph_objects as go
 
     app_data = app_data if app_data is not None else pd.DataFrame()
 
@@ -333,41 +336,17 @@ def plot_drill(
 
     return fig
 
-
 def main():
     st.set_page_config(
         page_title="📊 Resultats sorteig",
         layout="wide",
         menu_items={"Get Help": None, "Report a bug": None, "About": None},
     )
-    st.markdown(
-        """
-        <style>
-        header[data-testid="stHeader"] {display: none;}
-        section[data-testid="stSidebarNav"],
-        nav[data-testid="stSidebarNav"],
-        ul[data-testid="stSidebarNavItems"] {display: none;}
-        body {color: black;}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    default_idx = 1 if st.session_state.get("section") == "Dashboard" else 0
-    with st.sidebar:
-        section = option_menu(
-            "Menú",
-            ["Sorteig", "Dashboard"],
-            icons=["dice-5", "bar-chart"],
-            default_index=default_idx,
-        )
-        st.session_state["section"] = section
-    if section == "Sorteig":
-        st.switch_page("app_sorteig.py")
-
     if "resultat" not in st.session_state:
         st.error("⚠️ Primer executa un sorteig des de la pestanya «🎲 Sorteig».")
         return
     df = standardize_columns(st.session_state["resultat"])
+    import pandas as pd
     if "Estranger" in df.columns:
         df["Estranger"] = df["Estranger"].apply(normalize_estranger)
     if "Parroquia" in df.columns:
