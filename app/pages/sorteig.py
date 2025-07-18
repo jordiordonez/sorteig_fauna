@@ -1,6 +1,6 @@
 import streamlit as st
-from ..utils.constants import ESPECIE_SORTEIGS, TIPUS_OPTIONS
-from ..utils import draw_logic
+from app.utils.constants import ESPECIE_SORTEIGS, TIPUS_OPTIONS
+from app.utils import draw_logic
 
 
 @st.cache_data
