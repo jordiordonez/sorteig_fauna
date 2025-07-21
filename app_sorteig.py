@@ -62,7 +62,8 @@ def sanitize_indeterminat(key: str) -> None:
 
 
 def strip_accents(text: str) -> str:
-    """Remove diacritics for easier matching."""
+    """Return the input string without diacritics."""
+    text = str(text)
     return "".join(
         c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
     )
@@ -461,7 +462,9 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
 
     # Calcula límit global d’estrangers
     total_non_strangers = (df["Estranger"] == "no").sum()
-    estranger_limit = min(math.floor(total_non_strangers / 9), math.floor(0.1 * total_captures))
+    estranger_limit = min(
+        math.floor(total_non_strangers / 9), math.floor(0.1 * total_captures)
+    )
 
     # Divideix per modalitat
     df_colla = df[df["Modalitat"] == "A"]
@@ -510,11 +513,14 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
             group["rand"] = rng.random(len(group))
             idxs = group.sort_values(
                 ["Prioritat", "anys_sense_captura", "rand"],
-                ascending=[True, False, True]
+                ascending=[True, False, True],
             ).index[: min(to_assign, len(group))]
 
             for idx in idxs:
-                if df.at[idx, "Estranger"] == "si" and estrangers_A >= estranger_limit_A:
+                if (
+                    df.at[idx, "Estranger"] == "si"
+                    and estrangers_A >= estranger_limit_A
+                ):
                     continue  # límit d’estrangers colla assolit
                 if df.at[idx, "adjudicats"] == 0:
                     df.at[idx, "ordre"] = ordre_counter
@@ -527,17 +533,13 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
     # assignació individus (Modalitat B)
     rem = n_indiv
     while rem:
-        sub = df[
-            (df["Modalitat"] == "B")
-            & (df["adjudicats"] == 0)
-        ]
+        sub = df[(df["Modalitat"] == "B") & (df["adjudicats"] == 0)]
         if sub.empty:
             break
         group = sub.copy()
         group["rand"] = rng.random(len(group))
         idxs = group.sort_values(
-            ["Prioritat", "anys_sense_captura", "rand"],
-            ascending=[True, False, True]
+            ["Prioritat", "anys_sense_captura", "rand"], ascending=[True, False, True]
         ).index[: min(rem, len(group))]
 
         for idx in idxs:
@@ -564,6 +566,7 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
     )
     df["ordre"] = df["ordre"].astype("Int64")
     return df
+
 
 # ── (Additional helper functions assignar_captura_csv & assignar_captura_parroquial_csv unchanged) ──
 #    ↳ They are long but identical to what you pasted, no structural fix needed.

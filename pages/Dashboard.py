@@ -29,6 +29,8 @@ PARROQUIA_COLORS = {
 
 
 def strip_accents(text: str) -> str:
+    """Return the input string without diacritics."""
+    text = str(text)
     return "".join(
         c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
     )
