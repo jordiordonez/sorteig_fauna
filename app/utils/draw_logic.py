@@ -414,7 +414,7 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
 
     # Calcula límit global d’estrangers
     total_non_strangers = (df["Estranger"] == "no").sum()
-    estranger_limit = min(math.floor(total_non_strangers / 9), math.floor(0.1 * total_captures))
+    estranger_limit = math.floor(0.1 * total_captures)
 
     df_colla = df[df["Modalitat"] == "A"]
     df_indiv = df[df["Modalitat"] == "B"]
