@@ -141,15 +141,20 @@ def validar_csv2(df):
 
 
 def tria_candidat(
-    df, assigned, estr_cnt, assignats, vedat, assignats_parr, rng, total_caps
+    df,
+    assigned,
+    estr_cnt,
+    assignats,
+    vedat,
+    assignats_parr,
+    rng,
+    estranger_limit,
 ):
     pool = df[~df["ID"].isin(assigned)].copy()
     if pool.empty:
         return None
 
-    non_strangers = len(df[df["Estranger"] == "no"])
-    limit = min(math.floor(non_strangers / 9), math.floor(0.1 * total_caps))
-    if estr_cnt >= limit:
+    if estr_cnt >= estranger_limit:
         pool = pool[pool["Estranger"] == "no"]
     if pool.empty:
         return None
@@ -193,6 +198,7 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
 
     captures_pool = [t for t, q in tipus_quant for _ in range(q)]
     total_caps = len(captures_pool)
+    estranger_limit = math.floor(0.1 * total_caps)
     if not ordre_aleatori:
         captures_pool = captures_pool.copy()  # keep deterministic order
 
@@ -208,7 +214,7 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
                 vedat,
                 assignats_parr,
                 rng,
-                total_caps,
+                estranger_limit,
             )
             if idx is None:
                 break
@@ -234,7 +240,7 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
                     vedat,
                     assignats_parr,
                     rng,
-                    total_caps,
+                    estranger_limit,
                 )
                 if idx is None:
                     break
@@ -461,10 +467,7 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
     df["Estranger"] = df["Estranger"].apply(normalitza_estranger)
 
     # Calcula límit global d’estrangers
-    total_non_strangers = (df["Estranger"] == "no").sum()
-    estranger_limit = min(
-        math.floor(total_non_strangers / 9), math.floor(0.1 * total_captures)
-    )
+    estranger_limit = math.floor(0.1 * total_captures)
 
     # Divideix per modalitat
     df_colla = df[df["Modalitat"] == "A"]
