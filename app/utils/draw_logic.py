@@ -290,7 +290,7 @@ def processar_sorteigs(df1, df2, config, especie, seed):
             if total_cap <= 0:
                 raise ValueError("Total de captures per IS TCC ha de ser > 0")
             asignats = assignar_isards_sorteig_csv(
-                part, total_cap, seed=rng.randint(0, 2**32 - 1)
+                part, total_cap, seed=rng.randint(0, 2**31 - 1)
             )
             asignats["tipus"] = "+".join(conf_rows.iloc[0]["Tipus"])
         else:
@@ -304,7 +304,7 @@ def processar_sorteigs(df1, df2, config, especie, seed):
                 tipus_quant,
                 bool(conf_rows.iloc[0].get("Aleatori", False)),
                 vedat,
-                np.random.RandomState(rng.randint(0, 2**32 - 1)),
+                np.random.RandomState(rng.randint(0, 2**31 - 1)),
             )
 
         asignats = asignats.rename(
