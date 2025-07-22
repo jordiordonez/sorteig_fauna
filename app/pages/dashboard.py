@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from streamlit_option_menu import option_menu
 import unicodedata
 import math
 
@@ -343,28 +342,9 @@ def main():
         menu_items={"Get Help": None, "Report a bug": None, "About": None},
     )
     st.markdown(
-        """
-        <style>
-        header[data-testid="stHeader"] {display: none;}
-        section[data-testid="stSidebarNav"],
-        nav[data-testid="stSidebarNav"],
-        ul[data-testid="stSidebarNavItems"] {display: none;}
-        body {color: black;}
-        </style>
-        """,
+        "<style>body{color:black;}</style>",
         unsafe_allow_html=True,
     )
-    default_idx = 1 if st.session_state.get("section") == "Dashboard" else 0
-    with st.sidebar:
-        section = option_menu(
-            "Menú",
-            ["Sorteig", "Dashboard"],
-            icons=["dice-5", "bar-chart"],
-            default_index=default_idx,
-        )
-        st.session_state["section"] = section
-    if section == "Sorteig":
-        st.switch_page("app_sorteig.py")
 
     if "resultat" not in st.session_state:
         st.error("⚠️ Primer executa un sorteig des de la pestanya «🎲 Sorteig».")
