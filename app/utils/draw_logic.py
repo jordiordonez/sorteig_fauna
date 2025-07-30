@@ -318,7 +318,17 @@ def processar_sorteigs(df1, df2, config, especie, seed):
 
         resultat[col_base] = resultat[f"ordre_{col_base}"]
         mask_no_cap = resultat["ID"].isin(subset_ids) & resultat[col_base].isna()
-        resultat.loc[mask_no_cap, col_base] = 0
+        if mask_no_cap.any():
+            pending_ids = resultat.loc[mask_no_cap, "ID"]
+            tmp = part[part["ID"].isin(pending_ids)].copy()
+            tmp["rand"] = rng.random(len(tmp))
+            tmp.sort_values(
+                ["Prioritat", "anys_sense_captura", "rand"],
+                ascending=[True, False, True],
+                inplace=True,
+            )
+            labels = [f"s{i+1}" for i in range(len(tmp))]
+            resultat.loc[resultat["ID"].isin(tmp["ID"]), col_base] = labels
         resultat[f"Tipus_{col_base}"] = resultat[f"tipus_{col_base}"]
 
         winners = asignats.loc[asignats[f"ordre_{col_base}"].notna(), "ID"]
@@ -326,7 +336,6 @@ def processar_sorteigs(df1, df2, config, especie, seed):
             captures_prev[wid] = captures_prev.get(wid, 0) + 1
 
         resultat.drop(columns=[f"ordre_{col_base}", f"tipus_{col_base}"], inplace=True)
-        resultat[col_base] = resultat[col_base].astype("Int64")
 
         asign_finals = asignats[f"ordre_{col_base}"].notna().sum()
         estr = asignats[asignats["Estranger"] == "si"][f"ordre_{col_base}"].count()
@@ -378,7 +387,8 @@ def processar_sorteigs(df1, df2, config, especie, seed):
 
     capture_cols = [s.replace(" ", "_") for s in ESPECIE_SORTEIGS[especie]]
     resultat["te_capture"] = resultat[capture_cols].apply(
-        lambda r: r.fillna(0).gt(0).any(), axis=1
+        lambda r: pd.to_numeric(r, errors="coerce").fillna(0).gt(0).any(),
+        axis=1,
     )
     resultat["Nou_Anys_sense_captura"] = resultat.apply(
         lambda r: r["anys_sense_captura"] + 1 if not r["te_capture"] else 0, axis=1

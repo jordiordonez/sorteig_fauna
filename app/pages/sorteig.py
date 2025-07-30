@@ -90,7 +90,7 @@ with st.expander("Columnes del fitxer de resultats"):
     st.markdown(
         """
         El CSV resultants inclou, per a cada `ID`:
-        - Per a cada codi de sorteig, la posició on s'ha adjudicat la captura. Si el caçador estava inscrit i no ha obtingut plaça apareix `0`; si no estava inscrit el valor és buit.
+        - Per a cada codi de sorteig, la posició on s'ha adjudicat la captura. Si el caçador estava inscrit i no ha obtingut plaça apareix un codi `s1`, `s2`, ... amb l'ordre dels no adjudicats; si no estava inscrit el valor és buit.
         - Les columnes `Tipus_<codi>` indiquen el tipus de captura assignat en cada sorteig.
         - `Nou_Anys_sense_captura` i `Nova_prioritat` amb els valors resultants després de tots els sortejos.
         """
