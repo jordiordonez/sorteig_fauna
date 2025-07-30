@@ -230,15 +230,6 @@ def processar_sorteigs(df1, df2, config, especie, seed):
     import pandas as pd
     rng = np.random.RandomState(seed) if seed is not None else np.random.RandomState()
 
-    # Ensure numeric quantities in configuration
-    config = config.copy()
-    if "Quantitat" in config.columns:
-        config["Quantitat"] = (
-            pd.to_numeric(config["Quantitat"], errors="coerce")
-            .fillna(0)
-            .astype(int)
-        )
-
     ids_totals = df2["ID"].unique()
     if especie == "Isard":
         extra = df1.loc[df1["Modalitat"].notna() & ~df1["ID"].isin(ids_totals), "ID"]
@@ -328,6 +319,9 @@ def processar_sorteigs(df1, df2, config, especie, seed):
         resultat[col_base] = resultat[f"ordre_{col_base}"]
         mask_no_cap = resultat["ID"].isin(subset_ids) & resultat[col_base].isna()
         if mask_no_cap.any():
+            # Convert column to object dtype to allow mixed types (numbers and strings)
+            resultat[col_base] = resultat[col_base].astype('object')
+            
             pending_ids = resultat.loc[mask_no_cap, "ID"]
             tmp = part[part["ID"].isin(pending_ids)].copy()
             tmp["rand"] = rng.random(len(tmp))
@@ -337,7 +331,10 @@ def processar_sorteigs(df1, df2, config, especie, seed):
                 inplace=True,
             )
             labels = [f"s{i+1}" for i in range(len(tmp))]
-            resultat.loc[resultat["ID"].isin(tmp["ID"]), col_base] = labels
+            
+            # Assign substitute labels one by one to avoid dtype conflicts
+            for i, id_val in enumerate(tmp["ID"]):
+                resultat.loc[resultat["ID"] == id_val, col_base] = labels[i]
         resultat[f"Tipus_{col_base}"] = resultat[f"tipus_{col_base}"]
 
         winners = asignats.loc[asignats[f"ordre_{col_base}"].notna(), "ID"]
@@ -395,21 +392,50 @@ def processar_sorteigs(df1, df2, config, especie, seed):
         resum_sorteigs.append(resum)
 
     capture_cols = [s.replace(" ", "_") for s in ESPECIE_SORTEIGS[especie]]
+    
+    # Function to convert values: s1, s2, etc. -> 0, numeric values stay as numeric
+    def convert_capture_value(val):
+        if pd.isna(val):
+            return 0
+        val_str = str(val)
+        # If it starts with 's', it's a substitute position -> convert to 0
+        if val_str.startswith('s'):
+            return 0
+        # Otherwise try to convert to numeric, default to 0 if fails
+        try:
+            return pd.to_numeric(val, errors='coerce')
+        except:
+            return 0
+    
+    # Apply the conversion and check for captures > 0
     resultat["te_capture"] = resultat[capture_cols].apply(
-        lambda r: pd.to_numeric(r, errors="coerce").fillna(0).gt(0).any(),
+        lambda r: r.apply(convert_capture_value).fillna(0).gt(0).any(),
         axis=1,
     )
     resultat["Nou_Anys_sense_captura"] = resultat.apply(
         lambda r: r["anys_sense_captura"] + 1 if not r["te_capture"] else 0, axis=1
     )
+    
+    # Check for "Mascle" captures using the same conversion logic
+    def has_mascle_capture(row):
+        for col in capture_cols:
+            tipus_col = f"Tipus_{col}"
+            if tipus_col in resultat.columns:
+                tipus_val = row[tipus_col]
+                capture_val = convert_capture_value(row[col])
+                # Check if it's a "Mascle" type AND an actual capture (> 0)
+                if (pd.notna(tipus_val) and "Mascle" in str(tipus_val) 
+                    and capture_val > 0):
+                    return True
+        return False
+    
     resultat["Nova_prioritat"] = resultat.apply(
         lambda r: (
-            4
-            if any(str(r[f"Tipus_{c}"]).find("Mascle") >= 0 for c in capture_cols)
-            else (4 if r["te_capture"] else 2)
+            4 if has_mascle_capture(r) else (4 if r["te_capture"] else 2)
         ),
         axis=1,
     )
+    
     resultat.drop(columns=["te_capture"], inplace=True)
     return resultat, resum_sorteigs
 
@@ -431,7 +457,7 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
     df["ordre"] = np.nan
     df["Estranger"] = df["Estranger"].apply(normalitza_estranger)
 
-    # Calcula límit global d’estrangers
+    # Calcula límit global d'estrangers
     total_non_strangers = (df["Estranger"] == "no").sum()
     estranger_limit = math.floor(0.1 * total_captures)
 
@@ -530,4 +556,3 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
     )
     df["ordre"] = df["ordre"].astype("Int64")
     return df
-

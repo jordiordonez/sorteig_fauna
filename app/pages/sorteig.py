@@ -288,6 +288,11 @@ if st.session_state.get("run_draw"):
     st.session_state["resultat"] = resultat  # full table, ~ID × columns
     st.session_state["resums"] = resums  # list of per-draw summaries
     st.subheader("Resultats")
+    capture_cols = [s.replace(" ", "_") for s in ESPECIE_SORTEIGS[especie]]
+    for col in capture_cols:
+        if col in resultat.columns:
+            resultat[col] = resultat[col].astype(str).replace('nan', '')
+            resultat[col] = resultat[col].astype(str).replace('<NA>', '')
     st.dataframe(resultat, use_container_width=True)
 
     st.download_button(
