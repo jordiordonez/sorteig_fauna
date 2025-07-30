@@ -37,7 +37,9 @@ Ensure `run_app.py` (in sorteig_fauna folder) contains:
 
 ## 4. Build the EXE
 Run:
-    pyinstaller --onefile run_app.py
+    pyinstaller --onedir --add-data "app;app" --collect-all streamlit run_app.py
+
+
 
 This creates:
     dist/run_app.exe
@@ -71,7 +73,10 @@ If you want a custom icon:
 1. Prepare `icon.ico`.
 2. Rebuild:
        pyinstaller --onefile --icon=icon.ico run_app.py
-
+3. Copy Files
+	copy isard.csv dist\run_app\
+	copy altres.csv dist\run_app\
+	copy sorteig.csv dist\run_app\
 ---
 
 ## 9. Stopping the App
