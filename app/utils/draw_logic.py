@@ -230,6 +230,15 @@ def processar_sorteigs(df1, df2, config, especie, seed):
     import pandas as pd
     rng = np.random.RandomState(seed) if seed is not None else np.random.RandomState()
 
+    # Ensure numeric quantities in configuration
+    config = config.copy()
+    if "Quantitat" in config.columns:
+        config["Quantitat"] = (
+            pd.to_numeric(config["Quantitat"], errors="coerce")
+            .fillna(0)
+            .astype(int)
+        )
+
     ids_totals = df2["ID"].unique()
     if especie == "Isard":
         extra = df1.loc[df1["Modalitat"].notna() & ~df1["ID"].isin(ids_totals), "ID"]
