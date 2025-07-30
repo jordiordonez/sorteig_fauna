@@ -160,7 +160,7 @@ def recalc_filtered_summaries(
         if base not in data.columns:
             continue
         sol = int(data[base].notna().sum())
-        finals = int(data[base].gt(0).sum())
+        finals = int(pd.to_numeric(data[base], errors="coerce").gt(0).sum())
         prev = 0
         if "Assignacions_previstes" in prev_totals.columns:
             _pr = prev_totals.loc[prev_totals["Sorteig"] == s, "Assignacions_previstes"]
@@ -176,7 +176,7 @@ def recalc_filtered_summaries(
         )
         tip_col = f"Tipus_{base}"
         if tip_col in data.columns:
-            assigned = data.loc[data[base].gt(0)]
+            assigned = data.loc[pd.to_numeric(data[base], errors="coerce").gt(0)]
             grp = assigned.groupby(tip_col).size().dropna()
             for tip, val in grp.items():
                 rows_det.append(
@@ -440,7 +440,8 @@ def main():
     else:
         _dim_col = {"Parròquia": "Parroquia"}.get(dim, dim)
         if _dim_col in data.columns and assign_cols:
-            assign_count = data[assign_cols].gt(0).sum(axis=1)
+            numeric_assign = data[assign_cols].apply(pd.to_numeric, errors="coerce")
+            assign_count = numeric_assign.gt(0).sum(axis=1)
             drill_data = (
                 data.assign(Assignacions_finals=assign_count)
                 .groupby(_dim_col, as_index=False)["Assignacions_finals"]
