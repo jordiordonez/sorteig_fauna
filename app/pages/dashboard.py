@@ -167,7 +167,14 @@ def recalc_filtered_summaries(
         base = s.replace(" ", "_")
         if base not in data.columns:
             continue
-        sol = int(data[base].notna().sum())
+        ser = data[base].astype(str).str.strip()
+        non_empty = (
+            data[base].notna()
+            & ser.ne("")
+            & ser.str.lower().ne("nan")
+            & ser.str.lower().ne("none")
+        )
+        sol = int(non_empty.sum())
         finals = int(pd.to_numeric(data[base], errors="coerce").gt(0).sum())
         prev = 0
         if "Assignacions_previstes" in prev_totals.columns:
