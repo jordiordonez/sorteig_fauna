@@ -134,9 +134,17 @@ def build_summaries(resultat_df: pd.DataFrame, resums_list: list[pd.DataFrame]):
         )
 
     if "Sorteig" in summary.columns:
-        summary_totals = summary.groupby("Sorteig", as_index=False)[
-            ["Assignacions_previstes", "Assignacions_finals", "Sol_licituds"]
-        ].sum()
+        summary_totals = (
+            summary.groupby("Sorteig", as_index=False)
+            .agg(
+                {
+                    "Assignacions_previstes": "sum",
+                    "Assignacions_finals": "sum",
+                    # each Tipus row repeats the number of applications; take the max
+                    "Sol_licituds": "max",
+                }
+            )
+        )
     else:
         summary_totals = pd.DataFrame(
             columns=[
