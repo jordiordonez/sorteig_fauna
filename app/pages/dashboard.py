@@ -73,6 +73,16 @@ def normalize_parroquia(value):
     return None
 
 
+def is_inscrit(value) -> bool:
+    """Return True if the value represents an inscription in the draw."""
+    if pd.isna(value):
+        return False
+    s = str(value).strip()
+    if s.isdigit():
+        return True
+    return len(s) > 1 and s[0].lower() == "s" and s[1:].isdigit()
+
+
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     mapping = {}
     for col in df.columns:
@@ -167,14 +177,8 @@ def recalc_filtered_summaries(
         base = s.replace(" ", "_")
         if base not in data.columns:
             continue
-        ser = data[base].astype(str).str.strip()
-        non_empty = (
-            data[base].notna()
-            & ser.ne("")
-            & ser.str.lower().ne("nan")
-            & ser.str.lower().ne("none")
-        )
-        sol = int(non_empty.sum())
+        valid = data[base].map(is_inscrit)
+        sol = int(valid.sum())
         finals = int(pd.to_numeric(data[base], errors="coerce").gt(0).sum())
         prev = 0
         if "Assignacions_previstes" in prev_totals.columns:
@@ -462,7 +466,7 @@ def main():
                 .groupby(_dim_col, as_index=False)["Assignacions_finals"]
                 .sum()
             )
-            app_count = data[assign_cols].notna().sum(axis=1)
+            app_count = data[assign_cols].applymap(is_inscrit).sum(axis=1)
             app_data = (
                 data.assign(Sol_licituds=app_count)
                 .groupby(_dim_col, as_index=False)["Sol_licituds"]
