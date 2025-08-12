@@ -203,7 +203,44 @@ if st.session_state.get("run_draw"):
         st.stop()
 
     # ------------------------------------------------------------------ #
-    # 2️⃣  IS‑TCC: detect hunters without Modalitat                       #
+    # 2️⃣  Warn about IDs present only in one CSV                        #
+    # ------------------------------------------------------------------ #
+    ids_prio = set(df1["ID"].astype(str))
+    ids_ins = set(df2["ID"].astype(str))
+
+    missing_in_ins = ids_prio - ids_ins
+    if especie == "Isard" and "Modalitat" in df1.columns:
+        ab_ids = set(df1[df1["Modalitat"].isin(["A", "B"])]["ID"].astype(str))
+        missing_in_ins -= ab_ids
+    missing_in_prio = ids_ins - ids_prio
+
+    if (missing_in_ins or missing_in_prio) and not st.session_state.get(
+        "confirm_missing_ids", False
+    ):
+        msg_parts = []
+        if missing_in_ins:
+            msg_parts.append(
+                "IDs al CSV de prioritats però no al d'inscrits: "
+                + ", ".join(sorted(missing_in_ins))
+            )
+        if missing_in_prio:
+            msg_parts.append(
+                "IDs al CSV d'inscrits però no al de prioritats: "
+                + ", ".join(sorted(missing_in_prio))
+            )
+        st.warning(" ".join(msg_parts) + " S'ignoraran si continues.")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Ignorar i continuar", key="confirm_missing_ids_btn"):
+                st.session_state["confirm_missing_ids"] = True
+                st.rerun()
+        with col2:
+            if st.button("Atura el procés", key="stop_missing_ids"):
+                st.stop()
+        st.stop()
+
+    # ------------------------------------------------------------------ #
+    # 3️⃣  IS‑TCC: detect hunters without Modalitat                       #
     # ------------------------------------------------------------------ #
     ids_to_skip = []  # ← will hold the IDs we really want to ignore
 
@@ -239,14 +276,14 @@ if st.session_state.get("run_draw"):
         ids_to_skip = st.session_state.get("ids_to_skip_tcc", [])
 
     # ------------------------------------------------------------------ #
-    # 3️⃣  Drop those IDs only from IS TCC                               #
+    # 4️⃣  Drop those IDs only from IS TCC                               #
     # ------------------------------------------------------------------ #
     if ids_to_skip:
         mask = (df2["Codi_Sorteig"] == "IS TCC") & (df2["ID"].isin(ids_to_skip))
         df2 = df2.loc[~mask].copy()
 
     # ------------------------------------------------------------------ #
-    # 4️⃣  Build the configuration DataFrame from the UI inputs          #
+    # 5️⃣  Build the configuration DataFrame from the UI inputs          #
     # ------------------------------------------------------------------ #
     config_rows = []
     for sorteig in ESPECIE_SORTEIGS[especie]:
@@ -278,7 +315,7 @@ if st.session_state.get("run_draw"):
     config_df = pd.DataFrame(config_rows)
 
     # ------------------------------------------------------------------ #
-    # 5️⃣  Run the draw and show results                                 #
+    # 6️⃣  Run the draw and show results                                 #
     # ------------------------------------------------------------------ #
     try:
         resultat, resums = draw_logic.processar_sorteigs(df1, df2, config_df, especie, seed)
@@ -302,8 +339,9 @@ if st.session_state.get("run_draw"):
     )
 
     # ------------------------------------------------------------------ #
-    # 6️⃣  Clean‑up session flags so next run starts fresh                #
+    # 7️⃣  Clean‑up session flags so next run starts fresh                #
     # ------------------------------------------------------------------ #
     st.session_state.pop("confirm_missing_mod", None)
     st.session_state.pop("ids_to_skip_tcc", None)
+    st.session_state.pop("confirm_missing_ids", None)
     st.session_state["run_draw"] = False
