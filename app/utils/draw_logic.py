@@ -100,6 +100,7 @@ def tria_candidat(
     assignats_parr,
     rng,
     estranger_limit,
+    total_captures=None,
 ):
     import pandas as pd
     pool = df[~df["ID"].isin(assigned)].copy()
@@ -114,9 +115,18 @@ def tria_candidat(
     pool["rand"] = rng.random(len(pool))
 
     if vedat and vedat in VEDAT_PARRÒQUIES:
-        quotas = VEDAT_PARRÒQUIES[vedat]
+        quotas_pct = VEDAT_PARRÒQUIES[vedat]
+        # Calculate actual quota numbers from percentages
+        quotas_real = {}
+        if total_captures:
+            for parr, pct in quotas_pct.items():
+                quotas_real[parr] = round(pct * total_captures)
+        else:
+            # Fallback to percentage comparison if total_captures not provided
+            quotas_real = quotas_pct
+            
         pool["quota_flag"] = pool["Parroquia"].apply(
-            lambda p: 1 if quotas.get(p, 0) - assignats_parr.get(p, 0) > 0 else 0
+            lambda p: 1 if quotas_real.get(p, 0) - assignats_parr.get(p, 0) > 0 else 0
         )
         order_cols, asc = ["Prioritat", "quota_flag", "anys_sense_captura", "rand"], [
             True,
@@ -167,6 +177,7 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
                 assignats_parr,
                 rng,
                 estranger_limit,
+                total_caps,
             )
             if idx is None:
                 break
@@ -193,6 +204,7 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
                     assignats_parr,
                     rng,
                     estranger_limit,
+                    total_caps,
                 )
                 if idx is None:
                     break
