@@ -117,17 +117,31 @@ def tria_candidat(
     if vedat and vedat in VEDAT_PARRÒQUIES:
         quotas_pct = VEDAT_PARRÒQUIES[vedat]
         # Calculate actual quota numbers from percentages
-        quotas_real = {}
         if total_captures:
-            for parr, pct in quotas_pct.items():
-                quotas_real[parr] = round(pct * total_captures)
-        else:
-            # Fallback to percentage comparison if total_captures not provided
-            quotas_real = quotas_pct
+            # For vedats, 50% of captures are distributed with parish priority
+            captures_with_parish_priority = total_captures * 0.5
             
-        pool["quota_flag"] = pool["Parroquia"].apply(
-            lambda p: 1 if quotas_real.get(p, 0) - assignats_parr.get(p, 0) > 0 else 0
-        )
+            # Calculate each parish's target allocation from the prioritized portion
+            quotas_real = {}
+            
+            for parr, pct in quotas_pct.items():
+                # Calculate this parish's share of the prioritized captures
+                parish_quota = pct * captures_with_parish_priority
+                # Check how many have already been assigned to this parish
+                already_assigned = assignats_parr.get(parr, 0)
+                
+                # If this parish hasn't reached its quota from the prioritized portion, it gets priority
+                if already_assigned < parish_quota:
+                    quotas_real[parr] = 1  # Give priority flag
+                else:
+                    quotas_real[parr] = 0  # No priority
+                    
+            pool["quota_flag"] = pool["Parroquia"].apply(
+                lambda p: quotas_real.get(p, 0)
+            )
+        else:
+            # Fallback if no total_captures provided
+            pool["quota_flag"] = 0
         order_cols, asc = ["Prioritat", "quota_flag", "anys_sense_captura", "rand"], [
             True,
             False,
