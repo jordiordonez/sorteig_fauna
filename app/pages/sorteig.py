@@ -363,7 +363,10 @@ if st.session_state.get("run_draw"):
     try:
         resultat, resums = draw_logic.processar_sorteigs(df1, df2, zones_clean, especie, seed)
     except Exception as exc:
+        import traceback
         st.error(f"🚫 Error en el sorteig: {exc}")
+        with st.expander("Detalls tècnics (per a diagnòstic)"):
+            st.code(traceback.format_exc())
         st.stop()
 
     st.session_state["resultat"] = resultat
