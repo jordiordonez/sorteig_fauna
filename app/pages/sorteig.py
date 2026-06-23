@@ -1,6 +1,5 @@
 import streamlit as st
-from utils.constants import ESPECIE_SORTEIGS, TIPUS_OPTIONS
-from utils import draw_logic
+from utils import draw_logic, config
 
 
 @st.cache_data
@@ -9,327 +8,371 @@ def load_csv(file):
     return pd.read_csv(file, sep=";")
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+#  ESTAT DE LA CONFIGURACIÓ DE ZONES
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _ensure_state():
+    st.session_state.setdefault("zones_cfg", {})
+    st.session_state.setdefault("species_list", list(config.ESPECIES_BASE))
+    st.session_state.setdefault("_zid", 0)
 
 
-# Instruccions d'ús en català
+def _new_id():
+    st.session_state["_zid"] += 1
+    return st.session_state["_zid"]
+
+
+def _zones_for(especie):
+    """Retorna (i precarrega si cal) la llista de zones d'una espècie."""
+    cfg = st.session_state["zones_cfg"]
+    if especie not in cfg:
+        zs = config.default_zones(especie)
+        for z in zs:
+            z["_id"] = _new_id()
+        cfg[especie] = zs
+    return cfg[especie]
+
+
+def _clean_zones(zones):
+    """Zones sense claus internes (_id), llestes per al motor o per exportar."""
+    return [{k: v for k, v in z.items() if k != "_id"} for z in zones]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  EDITOR DE ZONES
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _render_captures(z, zid):
+    st.markdown("**Tipus de captura**")
+    caps = z.setdefault("captures", [])
+    if st.button("Afegeix Tipus", key=f"addcap_{zid}"):
+        caps.append({"tipus": [], "quantitat": 0})
+        st.rerun()
+    for k, cap in enumerate(caps):
+        c1, c2, c3 = st.columns([5, 2, 1])
+        sel = c1.multiselect(
+            f"Valors Tipus {k+1}",
+            config.TIPUS_OPTIONS,
+            default=[t for t in cap.get("tipus", []) if t in config.TIPUS_OPTIONS],
+            key=f"captip_{zid}_{k}",
+        )
+        # Si es tria "Indeterminat", és exclusiu.
+        if "Indeterminat" in sel and len(sel) > 1:
+            sel = ["Indeterminat"]
+        cap["tipus"] = sel
+        cap["quantitat"] = int(
+            c2.number_input(
+                f"Quantitat {k+1}",
+                min_value=0,
+                step=1,
+                value=int(cap.get("quantitat", 0)),
+                key=f"capqty_{zid}_{k}",
+            )
+        )
+        if c3.button("🗑", key=f"capdel_{zid}_{k}", help="Elimina aquest tipus"):
+            caps.pop(k)
+            st.rerun()
+
+
+def _render_zone(zones, i):
+    z = zones[i]
+    zid = z["_id"]
+    titol = f"{i+1}. {z.get('nom','(sense nom)')}  ·  {z.get('tipus','TCC')}"
+    if z.get("modalitat"):
+        titol += " · modalitat A/B"
+    with st.expander(titol, expanded=False):
+        c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
+        z["nom"] = c1.text_input("Nom de la zona", value=z.get("nom", ""), key=f"nom_{zid}")
+        tipus_idx = config.TIPUS_ZONA.index(z.get("tipus", "TCC")) if z.get("tipus") in config.TIPUS_ZONA else 1
+        z["tipus"] = c2.selectbox("Tipus", config.TIPUS_ZONA, index=tipus_idx, key=f"tipus_{zid}")
+        z["aleatori"] = c3.checkbox("Ordre aleatori", value=z.get("aleatori", True), key=f"alea_{zid}")
+        z["estranger_pct"] = float(
+            c4.number_input(
+                "% màx. estrangers",
+                min_value=0.0, max_value=100.0, step=1.0,
+                value=float(z.get("estranger_pct", config.ESTRANGER_PCT_DEFAULT)),
+                key=f"estr_{zid}",
+            )
+        )
+
+        z["modalitat"] = st.checkbox(
+            "Modalitat A/B (colles + individual, com l'IS TCC)",
+            value=z.get("modalitat", False),
+            key=f"mod_{zid}",
+        )
+
+        if z["tipus"] == "Vedat":
+            z["reserva_pct"] = float(
+                st.number_input(
+                    "% de captures reservat als locals",
+                    min_value=0.0, max_value=100.0, step=1.0,
+                    value=float(z.get("reserva_pct") or config.RESERVA_PCT_DEFAULT),
+                    key=f"res_{zid}",
+                )
+            )
+            st.caption("Repartiment d'aquest percentatge per parròquia (ha de sumar 100):")
+            parr = z.get("parroquies") or {}
+            new_parr = {}
+            pcols = st.columns(len(config.PARROQUIES))
+            for j, p in enumerate(config.PARROQUIES):
+                v = pcols[j].number_input(
+                    p, min_value=0.0, max_value=100.0, step=1.0,
+                    value=float(parr.get(p, 0.0)), key=f"parr_{zid}_{j}",
+                )
+                if v > 0:
+                    new_parr[p] = float(v)
+            z["parroquies"] = new_parr
+            tot = sum(new_parr.values())
+            if new_parr and abs(tot - 100.0) > 0.5:
+                st.warning(f"⚠️ Els percentatges parroquials sumen {tot:.1f}, no 100.")
+            elif not new_parr:
+                st.warning("⚠️ Aquest vedat encara no té cap distribució parroquial definida.")
+        else:
+            z["reserva_pct"] = None
+            z["parroquies"] = {}
+
+        _render_captures(z, zid)
+
+        st.divider()
+        b1, b2, b3 = st.columns(3)
+        if b1.button("⬆️ Amunt", key=f"up_{zid}", disabled=(i == 0)):
+            zones[i - 1], zones[i] = zones[i], zones[i - 1]
+            st.rerun()
+        if b2.button("⬇️ Avall", key=f"down_{zid}", disabled=(i == len(zones) - 1)):
+            zones[i + 1], zones[i] = zones[i], zones[i + 1]
+            st.rerun()
+        if b3.button("🗑 Elimina la zona", key=f"delz_{zid}"):
+            zones.pop(i)
+            st.rerun()
+
+
+def render_zones(especie):
+    zones = _zones_for(especie)
+
+    top1, top2 = st.columns([2, 3])
+    if top1.button("➕ Afegeix zona", key=f"addzone_{especie}"):
+        nz = config.new_zone(nom=f"Zona {len(zones)+1}")
+        nz["_id"] = _new_id()
+        zones.append(nz)
+        st.rerun()
+    if top2.button("↺ Restaura les zones per defecte", key=f"reset_{especie}"):
+        zs = config.default_zones(especie)
+        for z in zs:
+            z["_id"] = _new_id()
+        st.session_state["zones_cfg"][especie] = zs
+        st.rerun()
+
+    if not zones:
+        st.info("Aquesta espècie encara no té zones. Afegeix-ne una amb «➕ Afegeix zona».")
+
+    st.caption("L'ordre de la llista és l'ordre del sorteig (usa ⬆️/⬇️ per canviar-lo).")
+    for i in range(len(zones)):
+        _render_zone(zones, i)
+
+
+def render_import_export(especie):
+    import json
+    with st.expander("Desar / carregar configuració (JSON)"):
+        clean = _clean_zones(_zones_for(especie))
+        st.download_button(
+            "📤 Exporta la configuració d'aquesta espècie",
+            data=config.zones_to_json(clean).encode("utf-8"),
+            file_name=f"config_{especie}.json",
+            mime="application/json",
+            key=f"exp_{especie}",
+        )
+        up = st.file_uploader("📥 Importa configuració (JSON)", type="json", key=f"imp_{especie}")
+        if up is not None and st.button("Carrega aquest fitxer", key=f"impbtn_{especie}"):
+            try:
+                zs = json.loads(up.getvalue().decode("utf-8"))
+                for z in zs:
+                    z["_id"] = _new_id()
+                st.session_state["zones_cfg"][especie] = zs
+                st.success("Configuració carregada.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"No s'ha pogut llegir el fitxer: {exc}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  PÀGINA
+# ──────────────────────────────────────────────────────────────────────────────
+
+_ensure_state()
+
 with st.expander("Instruccions d'ús", expanded=False):
     st.markdown(
         """
-1. **Seleccioneu l'espècie.**  
-2. **Configureu els sortejos:** per a cada **tipus** indiqueu el nombre de captures i si els sortejos s’han de fer en l’ordre dels tipus definits.  
-   - Feu clic a **“Afegeix Tipus”** per crear-ne de nous (podeu seleccionar diverses opcions per tipus).  
-3. **Pugeu** el **CSV de prioritats** i el **CSV d’inscrits** al sorteig.  
-4. *(Només per a Isard)* Els participants **sense modalitat** no participaran al **TCC**.  
-5. *(Opcional)* Introduïu una **llavor** per reproduir exactament el mateix sorteig.  
-6. Premeu **“Executar sorteig”** per obtenir i descarregar els resultats.
+1. **Seleccioneu l'espècie** (o afegiu-ne una de nova, tipus «Altres»).
+2. **Configureu les zones**: per a cada zona indiqueu el tipus (Vedat o TCC), si té
+   modalitat A/B, els tipus de captura i les quantitats. En els vedats, fixeu el
+   percentatge reservat als locals i el repartiment per parròquies.
+3. **Ordeneu les zones** amb ⬆️/⬇️: el sorteig segueix l'ordre de la llista.
+4. **Pugeu** el **CSV de prioritats** i el **CSV d'inscrits**.
+5. *(Opcional)* Introduïu una **llavor** per reproduir exactament el mateix sorteig.
+6. Premeu **«Executar sorteig»** per obtenir i descarregar els resultats.
         """
     )
 
-with st.expander("Cas `Isard`"):
+with st.expander("Format dels CSV"):
     st.markdown(
         """
-Per a l'espècie **isard**, el fitxer CSV de **prioritats** ha de tenir el següent format:
+**CSV de prioritats** — una fila per caçador:
 
-| Columna              | Descripció                                                                 |
-|----------------------|------------------------------------------------------------------------------|
-| `ID`                 | Identificador únic del caçador                                               |
-| `Modalitat`          | `A` = colla, `B` = individual, `""` (buit) si **no** es vol participar al TCC |
-| `Colla_ID`           | Identificador de la colla (només si `Modalitat = A`)                         |
-| `Prioritat`          | Prioritat actual (1 = màxima)                                                |
-| `anys_sense_captura` | Nombre d’anys consecutius sense captura                                      |
-| `Parroquia`          | Nom o codi de la parròquia (obligatori si és un vedat) |
-| `Estranger`          | **Sí/No** – indica si el caçador és estranger                                |
-        """
-    )
+| Columna | Quan cal |
+|---|---|
+| `ID` | sempre |
+| `Prioritat` | sempre (1 = màxima) |
+| `anys_sense_captura` | sempre |
+| `Estranger` | sempre (Sí/No) |
+| `Parroquia` | si alguna zona és **Vedat** |
+| `Modalitat` (`A`/`B`) i `Colla_ID` | si alguna zona té **modalitat A/B** |
 
-with st.expander("Altres espècies / unitats de gestió"):
-    st.markdown(
-        """
-Per a la resta d’espècies o unitats de gestió, el CSV té el mateix format però **sense les columnes `Modalitat` i `Colla_ID`**.
-
-| Columna              | Descripció                                           |
-|----------------------|------------------------------------------------------|
-| `ID`                 | Identificador únic del caçador                       |
-| `Prioritat`          | Prioritat actual (1 = màxima)                        |
-| `anys_sense_captura` | Nombre d’anys consecutius sense captura              |
-| `Estranger`          | **Sí/No** – indica si el caçador és estranger        |
-        """
-    )
-
-with st.expander("Nota sobre les quotes parroquials en vedats"):
-    st.markdown(
-        """
-        Quan es defineixen diversos tipus de captura per a un mateix vedat (per exemple, “Femella” i “Mascle+Trofeu”), la reserva del 50% de captures per a les parròquies s'aplica sobre la suma total de captures definides per al sorteig. Aquest percentatge es reparteix entre les parròquies afectades segons el percentatge establert per vedat.
-
-        ⚠️ Aquest 50% no és obligatòriament assolit. L'assignació de captures dins aquesta quota segueix les prioritats individuals dels caçadors. La condició per donar preferència a un caçador de la parròquia és:
-        - Que tingui la mateixa prioritat individual que altres sol·licitants.
-        - Que la seva parròquia no hagi assolit encara el percentatge corresponent dins del 50%.
-
-        Un cop es compleixen aquestes dues condicions, el sistema prioritza els caçadors locals fins a exhaurir la quota. Un cop superada, totes les captures es reparteixen exclusivament per prioritat individual.
-        """
-    )
-
-with st.expander("Parròquies"):
-    st.markdown(
-        """
-        | Codi | Parròquia              |
-        |------|------------------------|
-        | 1    | Canillo                |
-        | 2    | Encamp                 |
-        | 3    | Ordino                 |
-        | 4    | La Massana             |
-        | 5    | Andorra la Vella       |
-        | 6    | Sant Julià de Lòria    |
-        | 7    | Escaldes-Engordany     |
-
-        Si el nom està escrit de manera alternativa (majúscules, minúscules, abreviatures com `SJ`, `ESCALDES`, etc.), també serà reconegut automàticament, però **es recomana el format numèric** per garantir la màxima fiabilitat.
-        """
-    )
-
-with st.expander("Columnes del fitxer de resultats"):
-    st.markdown(
-        """
-        El CSV resultants inclou, per a cada `ID`:
-        - Per a cada codi de sorteig, la posició on s'ha adjudicat la captura. Si el caçador estava inscrit i no ha obtingut plaça apareix un codi `s1`, `s2`, ... amb l'ordre dels no adjudicats; si no estava inscrit el valor és buit.
-        - Les columnes `Tipus_<codi>` indiquen el tipus de captura assignat en cada sorteig.
-        - `Nou_Anys_sense_captura` i `Nova_prioritat` amb els valors resultants després de tots els sortejos.
+**CSV d'inscrits** — columnes `ID` i `Codi_Sorteig` (el codi ha de coincidir amb el **nom de la zona**).
         """
     )
 
 st.markdown("💡 Pots descarregar exemples de fitxers aquí:")
-
+ex1, ex2, ex3 = st.columns(3)
 with open("isard.csv", "rb") as f1:
-    st.download_button(
-        label="📥 Exemple Isard (isard.csv)",
-        data=f1,
-        file_name="isard.csv",
-        mime="text/csv",
-    )
-
+    ex1.download_button("📥 Exemple Isard", f1, file_name="isard.csv", mime="text/csv")
 with open("altres.csv", "rb") as f2:
-    st.download_button(
-        label="📥 Altres espècies (altres.csv)",
-        data=f2,
-        file_name="altres.csv",
-        mime="text/csv",
-    )
-
+    ex2.download_button("📥 Altres espècies", f2, file_name="altres.csv", mime="text/csv")
 with open("sorteig.csv", "rb") as f3:
-    st.download_button(
-        label="📥 Exemple Inscripcions Sortejos (sorteig.csv)",
-        data=f3,
-        file_name="sorteig.csv",
-        mime="text/csv",
-    )
+    ex3.download_button("📥 Exemple Inscripcions", f3, file_name="sorteig.csv", mime="text/csv")
 
-especie = st.selectbox("Espècie", list(ESPECIE_SORTEIGS.keys()))
+# ── Selecció d'espècie ────────────────────────────────────────────────────────
+sp1, sp2 = st.columns([2, 2])
+especie = sp1.selectbox("Espècie", st.session_state["species_list"], key="especie_sel")
+with sp2.expander("➕ Nova espècie (tipus «Altres»)"):
+    new_sp = st.text_input("Nom", key="new_sp_name")
+    if st.button("Crea espècie"):
+        nom = (new_sp or "").strip()
+        if nom and nom not in st.session_state["species_list"]:
+            st.session_state["species_list"].append(nom)
+            st.session_state["zones_cfg"][nom] = []
+            st.rerun()
 
-with st.expander("Configuració de captures per sorteig"):
-    for sorteig in ESPECIE_SORTEIGS[especie]:
-        st.markdown(f"### {sorteig}")
-        key_prefix = sorteig.replace(" ", "_")
-        if especie == "Isard" and sorteig == "IS TCC":
-            st.number_input(
-                "Quantitat Captures", min_value=0, step=1, key=f"total_{key_prefix}"
-            )
-            st.session_state.setdefault(f"configs_{key_prefix}", [])
-        else:
-            aleatori_key = f"aleatori_{key_prefix}"
-            st.checkbox("Ordre aleatori", value=True, key=aleatori_key)
+st.subheader(f"Zones — {especie}")
+render_zones(especie)
+render_import_export(especie)
 
-            cfg_key = f"configs_{key_prefix}"
-            if cfg_key not in st.session_state:
-                st.session_state[cfg_key] = [{"selections": [], "qty": 0}]
-
-            if st.button("Afegeix Tipus", key=f"add_{key_prefix}"):
-                st.session_state[cfg_key].append({"selections": [], "qty": 0})
-
-            for idx in range(len(st.session_state[cfg_key])):
-                conf = st.session_state[cfg_key][idx]
-                st.subheader(f"Tipus {idx+1}")
-
-                sel_key = f"{key_prefix}_sel_{idx}"
-                if sel_key not in st.session_state:
-                    st.session_state[sel_key] = conf["selections"]
-                st.multiselect(
-                    f"Valors Tipus {idx+1}",
-                    TIPUS_OPTIONS,
-                    key=sel_key,
-                    on_change=draw_logic.sanitize_indeterminat,
-                    args=(sel_key,),
-                )
-                sel = st.session_state.get(sel_key, [])
-
-                qty_key = f"{key_prefix}_qty_{idx}"
-                if qty_key not in st.session_state:
-                    st.session_state[qty_key] = conf["qty"]
-                qty = st.number_input("Quantitat", min_value=0, step=1, key=qty_key)
-
-                st.session_state[cfg_key][idx] = {"selections": sel, "qty": qty}
-
+# ── CSV i llavor ──────────────────────────────────────────────────────────────
 csv1 = st.file_uploader("CSV de prioritats", type="csv", key="csv1")
 csv2 = st.file_uploader("CSV d'inscrits", type="csv", key="csv2")
 
 seed_input = st.number_input("Llavor opcional", value=0, step=1)
 seed = int(seed_input) if seed_input else None
 
-# Track whether the draw process should be executed across reruns
 st.session_state.setdefault("run_draw", False)
 
 # ─────────────────────  EXECUTAR SORTEIG  ────────────────────────────────
-# When the user presses the button we set a session flag so that
-# the computation can survive Streamlit reruns (e.g. when asking to
-# confirm missing modalities).
 if st.button("Executar sorteig"):
     st.session_state["run_draw"] = True
 
 if st.session_state.get("run_draw"):
-
-    # ------------------------------------------------------------------ #
     import pandas as pd
-    # 1️⃣  Load & validate the CSVs                                       #
-    # ------------------------------------------------------------------ #
+
+    zones_clean = _clean_zones(_zones_for(especie))
+
     if not csv1 or not csv2:
         st.error("Cal carregar els dos CSV")
+        st.stop()
+    if not zones_clean:
+        st.error("Cal configurar com a mínim una zona per a aquesta espècie.")
         st.stop()
 
     df1 = load_csv(csv1)
     df2 = load_csv(csv2)
+
+    # ── Validació de columnes segons la configuració de zones ─────────────
+    needs_modalitat = any(z.get("modalitat") for z in zones_clean)
+    needs_parroquia = any(z.get("tipus") == "Vedat" for z in zones_clean)
+    required = {"ID", "Prioritat", "anys_sense_captura", "Estranger"}
+    if needs_modalitat:
+        required |= {"Modalitat", "Colla_ID"}
+    if needs_parroquia:
+        required |= {"Parroquia"}
     try:
         draw_logic.validar_csv2(df2)
-        (draw_logic.validar_csv_isard if especie == "Isard" else draw_logic.validar_csv_altres)(df1)
     except ValueError as e:
         st.error(str(e))
         st.stop()
+    missing = required - set(df1.columns)
+    if missing:
+        st.error(f"Falten columnes al CSV de prioritats: {', '.join(sorted(missing))}")
+        st.stop()
 
-    # ------------------------------------------------------------------ #
-    # 2️⃣  Warn about IDs present only in one CSV                        #
-    # ------------------------------------------------------------------ #
+    # ── Avís d'IDs presents només en un CSV ───────────────────────────────
     ids_prio = set(df1["ID"].astype(str))
     ids_ins = set(df2["ID"].astype(str))
-
     missing_in_ins = ids_prio - ids_ins
-    if especie == "Isard" and "Modalitat" in df1.columns:
+    if needs_modalitat and "Modalitat" in df1.columns:
         ab_ids = set(df1[df1["Modalitat"].isin(["A", "B"])]["ID"].astype(str))
         missing_in_ins -= ab_ids
     missing_in_prio = ids_ins - ids_prio
 
-    if (missing_in_ins or missing_in_prio) and not st.session_state.get(
-        "confirm_missing_ids", False
-    ):
-        msg_parts = []
+    if (missing_in_ins or missing_in_prio) and not st.session_state.get("confirm_missing_ids", False):
+        parts = []
         if missing_in_ins:
-            msg_parts.append(
-                "IDs al CSV de prioritats però no al d'inscrits: "
-                + ", ".join(sorted(missing_in_ins))
-            )
+            parts.append("IDs a prioritats però no a inscrits: " + ", ".join(sorted(missing_in_ins)))
         if missing_in_prio:
-            msg_parts.append(
-                "IDs al CSV d'inscrits però no al de prioritats: "
-                + ", ".join(sorted(missing_in_prio))
-            )
-        st.warning(" ".join(msg_parts) + " S'ignoraran si continues.")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Ignorar i continuar", key="confirm_missing_ids_btn"):
-                st.session_state["confirm_missing_ids"] = True
-                st.rerun()
-        with col2:
-            if st.button("Atura el procés", key="stop_missing_ids"):
-                st.stop()
+            parts.append("IDs a inscrits però no a prioritats: " + ", ".join(sorted(missing_in_prio)))
+        st.warning(" ".join(parts) + " S'ignoraran si continues.")
+        c1, c2 = st.columns(2)
+        if c1.button("Ignorar i continuar", key="confirm_missing_ids_btn"):
+            st.session_state["confirm_missing_ids"] = True
+            st.rerun()
+        if c2.button("Atura el procés", key="stop_missing_ids"):
+            st.stop()
         st.stop()
 
-    # ------------------------------------------------------------------ #
-    # 3️⃣  IS‑TCC: detect hunters without Modalitat                       #
-    # ------------------------------------------------------------------ #
-    ids_to_skip = []  # ← will hold the IDs we really want to ignore
-
-    if especie == "Isard":
-        inscrits_tcc = df2[df2["Codi_Sorteig"] == "IS TCC"]
-        missing_mod = inscrits_tcc.merge(df1[["ID", "Modalitat"]], on="ID", how="left")
+    # ── Zones amb modalitat: inscrits sense Modalitat ─────────────────────
+    ids_to_skip = []
+    if needs_modalitat:
+        mod_zone_names = [z["nom"] for z in zones_clean if z.get("modalitat")]
+        inscrits_mod = df2[df2["Codi_Sorteig"].isin(mod_zone_names)]
+        missing_mod = inscrits_mod.merge(df1[["ID", "Modalitat"]], on="ID", how="left")
         missing_mod = missing_mod[
             missing_mod["Modalitat"].isna()
             | (missing_mod["Modalitat"].astype(str).str.strip() == "")
         ]
-
-        # -- Ask the user what to do ------------------------------------
-        if not missing_mod.empty and not st.session_state.get(
-            "confirm_missing_mod", False
-        ):
+        if not missing_mod.empty and not st.session_state.get("confirm_missing_mod", False):
             st.warning(
-                "Els següents caçadors s'han inscrit al TCC però no tenen modalitat "
-                "especificada i s'ignoraran si continues: "
-                + ", ".join(missing_mod["ID"].astype(str))
+                "Aquests caçadors estan inscrits en una zona amb modalitat però no en "
+                "tenen cap especificada i s'ignoraran si continues: "
+                + ", ".join(missing_mod["ID"].astype(str).unique())
             )
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Ignorar i continuar", key="confirm_missing_mod_btn"):
-                    st.session_state["confirm_missing_mod"] = True
-                    st.session_state["ids_to_skip_tcc"] = missing_mod["ID"].tolist()
-                    st.rerun()
-            with col2:
-                if st.button("Atura el procés", key="stop_missing_mod"):
-                    st.stop()
-            st.stop()  # wait until the user picks an option
+            c1, c2 = st.columns(2)
+            if c1.button("Ignorar i continuar", key="confirm_missing_mod_btn"):
+                st.session_state["confirm_missing_mod"] = True
+                st.session_state["ids_to_skip_mod"] = missing_mod["ID"].tolist()
+                st.session_state["mod_zone_names"] = mod_zone_names
+                st.rerun()
+            if c2.button("Atura el procés", key="stop_missing_mod"):
+                st.stop()
+            st.stop()
+        ids_to_skip = st.session_state.get("ids_to_skip_mod", [])
+        mod_zone_names = st.session_state.get("mod_zone_names", mod_zone_names)
+        if ids_to_skip:
+            mask = df2["Codi_Sorteig"].isin(mod_zone_names) & df2["ID"].isin(ids_to_skip)
+            df2 = df2.loc[~mask].copy()
 
-        # -- User already confirmed on a previous run -------------------
-        ids_to_skip = st.session_state.get("ids_to_skip_tcc", [])
-
-    # ------------------------------------------------------------------ #
-    # 4️⃣  Drop those IDs only from IS TCC                               #
-    # ------------------------------------------------------------------ #
-    if ids_to_skip:
-        mask = (df2["Codi_Sorteig"] == "IS TCC") & (df2["ID"].isin(ids_to_skip))
-        df2 = df2.loc[~mask].copy()
-
-    # ------------------------------------------------------------------ #
-    # 5️⃣  Build the configuration DataFrame from the UI inputs          #
-    # ------------------------------------------------------------------ #
-    config_rows = []
-    for sorteig in ESPECIE_SORTEIGS[especie]:
-        key_prefix = sorteig.replace(" ", "_")
-
-        if especie == "Isard" and sorteig == "IS TCC":
-            total = st.session_state.get(f"total_{key_prefix}", 0)
-            config_rows.append(
-                {
-                    "Codi_Sorteig": sorteig,
-                    "Tipus": "",
-                    "Quantitat": total,
-                    "Aleatori": True,
-                }
-            )
-        else:
-            aleatori = st.session_state.get(f"aleatori_{key_prefix}", True)
-            for conf in st.session_state.get(f"configs_{key_prefix}", []):
-                tip = "+".join(conf["selections"]) if conf["selections"] else ""
-                config_rows.append(
-                    {
-                        "Codi_Sorteig": sorteig,
-                        "Tipus": tip,
-                        "Quantitat": conf["qty"],
-                        "Aleatori": aleatori,
-                    }
-                )
-
-    config_df = pd.DataFrame(config_rows)
-
-    # ------------------------------------------------------------------ #
-    # 6️⃣  Run the draw and show results                                 #
-    # ------------------------------------------------------------------ #
+    # ── Executar ──────────────────────────────────────────────────────────
     try:
-        resultat, resums = draw_logic.processar_sorteigs(df1, df2, config_df, especie, seed)
+        resultat, resums = draw_logic.processar_sorteigs(df1, df2, zones_clean, especie, seed)
     except Exception as exc:
         st.error(f"🚫 Error en el sorteig: {exc}")
         st.stop()
-    st.session_state["resultat"] = resultat  # full table, ~ID × columns
-    st.session_state["resums"] = resums  # list of per-draw summaries
+
+    st.session_state["resultat"] = resultat
+    st.session_state["resums"] = resums
     st.subheader("Resultats")
-    capture_cols = [s.replace(" ", "_") for s in ESPECIE_SORTEIGS[especie]]
+    capture_cols = [z["nom"].replace(" ", "_") for z in zones_clean]
     for col in capture_cols:
         if col in resultat.columns:
-            resultat[col] = resultat[col].astype(str).replace('nan', '')
-            resultat[col] = resultat[col].astype(str).replace('<NA>', '')
+            resultat[col] = resultat[col].astype(str).replace("nan", "").replace("<NA>", "")
     st.dataframe(resultat, use_container_width=True)
 
     st.download_button(
@@ -338,10 +381,9 @@ if st.session_state.get("run_draw"):
         file_name="resultats.csv",
     )
 
-    # ------------------------------------------------------------------ #
-    # 7️⃣  Clean‑up session flags so next run starts fresh                #
-    # ------------------------------------------------------------------ #
+    # Neteja de flags
     st.session_state.pop("confirm_missing_mod", None)
-    st.session_state.pop("ids_to_skip_tcc", None)
+    st.session_state.pop("ids_to_skip_mod", None)
+    st.session_state.pop("mod_zone_names", None)
     st.session_state.pop("confirm_missing_ids", None)
     st.session_state["run_draw"] = False

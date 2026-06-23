@@ -2,7 +2,6 @@ import math
 import numpy as np
 import streamlit as st
 import unicodedata
-from .constants import ESPECIE_SORTEIGS, VEDAT_PARRÒQUIES
 
 
 def sanitize_indeterminat(key: str) -> None:
@@ -96,7 +95,8 @@ def tria_candidat(
     assigned,
     estr_cnt,
     assignats,
-    vedat,
+    parroquies_frac,
+    reserva_frac,
     assignats_parr,
     rng,
     estranger_limit,
@@ -114,34 +114,22 @@ def tria_candidat(
 
     pool["rand"] = rng.random(len(pool))
 
-    if vedat and vedat in VEDAT_PARRÒQUIES:
-        quotas_pct = VEDAT_PARRÒQUIES[vedat]
-        # Calculate actual quota numbers from percentages
-        if total_captures:
-            # For vedats, 50% of captures are distributed with parish priority
-            captures_with_parish_priority = total_captures * 0.5
-            
-            # Calculate each parish's target allocation from the prioritized portion
-            quotas_real = {}
-            
-            for parr, pct in quotas_pct.items():
-                # Calculate this parish's share of the prioritized captures
-                parish_quota = pct * captures_with_parish_priority
-                # Check how many have already been assigned to this parish
-                already_assigned = assignats_parr.get(parr, 0)
-                
-                # If this parish hasn't reached its quota from the prioritized portion, it gets priority
-                if already_assigned < parish_quota:
-                    quotas_real[parr] = 1  # Give priority flag
-                else:
-                    quotas_real[parr] = 0  # No priority
-                    
-            pool["quota_flag"] = pool["Parroquia"].apply(
-                lambda p: quotas_real.get(p, 0)
-            )
-        else:
-            # Fallback if no total_captures provided
-            pool["quota_flag"] = 0
+    if parroquies_frac and "Parroquia" in pool.columns and total_captures:
+        # En un vedat, es reserva `reserva_frac` del total de captures amb
+        # prioritat parroquial, repartida segons `parroquies_frac` (fraccions
+        # que sumen ~1). Una parròquia rep preferència (quota_flag=1) mentre no
+        # hagi exhaurit la seva part d'aquesta reserva.
+        captures_with_parish_priority = total_captures * reserva_frac
+
+        quotas_real = {}
+        for parr, frac in parroquies_frac.items():
+            parish_quota = frac * captures_with_parish_priority
+            already_assigned = assignats_parr.get(parr, 0)
+            quotas_real[parr] = 1 if already_assigned < parish_quota else 0
+
+        pool["quota_flag"] = pool["Parroquia"].apply(
+            lambda p: quotas_real.get(p, 0)
+        )
         order_cols, asc = ["Prioritat", "quota_flag", "anys_sense_captura", "rand"], [
             True,
             False,
@@ -160,7 +148,9 @@ def tria_candidat(
 
 # ── HELPER: INDIVIDUAL DRAW (no colles) ──────────────────────────────────────
 
-def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
+def sorteig_individual(
+    df, tipus_quant, ordre_aleatori, parroquies_frac, reserva_frac, estranger_pct, rng
+):
     import pandas as pd
     df = df.copy()
     df["Estranger"] = df["Estranger"].apply(normalitza_estranger)
@@ -170,11 +160,11 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
     df["assigned"] = False
     df["ordre"] = pd.Series([pd.NA] * len(df), dtype="Int64")
     df["tipus"] = pd.Series([pd.NA] * len(df), dtype="object")
-    assignats_parr = {k: 0 for k in VEDAT_PARRÒQUIES.get(vedat, {})}
+    assignats_parr = {k: 0 for k in (parroquies_frac or {})}
 
     captures_pool = [t for t, q in tipus_quant for _ in range(q)]
     total_caps = len(captures_pool)
-    estranger_limit = math.floor(0.1 * total_caps)
+    estranger_limit = math.floor(estranger_pct / 100.0 * total_caps)
     if not ordre_aleatori:
         captures_pool = captures_pool.copy()  # keep deterministic order
 
@@ -187,7 +177,8 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
                 set(df[df["assigned"]]["ID"]),
                 estrangers,
                 assignats,
-                vedat,
+                parroquies_frac,
+                reserva_frac,
                 assignats_parr,
                 rng,
                 estranger_limit,
@@ -203,7 +194,7 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
             assignats += 1
             if df.at[idx, "Estranger"] == "si":
                 estrangers += 1
-            if vedat and df.at[idx, "Parroquia"] in assignats_parr:
+            if parroquies_frac and df.at[idx, "Parroquia"] in assignats_parr:
                 assignats_parr[df.at[idx, "Parroquia"]] += 1
             ordre += 1
     else:
@@ -214,7 +205,8 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
                     set(df[df["assigned"]]["ID"]),
                     estrangers,
                     assignats,
-                    vedat,
+                    parroquies_frac,
+                    reserva_frac,
                     assignats_parr,
                     rng,
                     estranger_limit,
@@ -227,7 +219,7 @@ def sorteig_individual(df, tipus_quant, ordre_aleatori, vedat, rng):
                 assignats += 1
                 if df.at[idx, "Estranger"] == "si":
                     estrangers += 1
-                if vedat and df.at[idx, "Parroquia"] in assignats_parr:
+                if parroquies_frac and df.at[idx, "Parroquia"] in assignats_parr:
                     assignats_parr[df.at[idx, "Parroquia"]] += 1
                 ordre += 1
 
@@ -252,18 +244,22 @@ def _parse_tipus(value):
 # ── MAIN: PROCESSAR SORTEIGS ────────────────────────────────────────────────
 
 @st.cache_data
-def processar_sorteigs(df1, df2, config, especie, seed):
+def processar_sorteigs(df1, df2, zones, especie, seed):
     import pandas as pd
     rng = np.random.RandomState(seed) if seed is not None else np.random.RandomState()
 
+    # Una zona amb modalitat A/B (avui, l'IS TCC) admet participants amb
+    # Modalitat encara que no constin al CSV d'inscrits.
+    has_modalitat = any(z.get("modalitat") for z in zones)
+
     ids_totals = df2["ID"].unique()
-    if especie == "Isard":
+    if has_modalitat and "Modalitat" in df1.columns:
         extra = df1.loc[df1["Modalitat"].notna() & ~df1["ID"].isin(ids_totals), "ID"]
         ids_totals = np.union1d(ids_totals, extra)
     base = df1[df1["ID"].isin(ids_totals)].drop_duplicates("ID")
 
     cols = ["ID"]
-    if especie == "Isard":
+    if has_modalitat and {"Modalitat", "Colla_ID"}.issubset(df1.columns):
         cols.extend(["Modalitat", "Colla_ID"])
     cols.extend(["Prioritat", "anys_sense_captura", "Estranger"])
     if "Parroquia" in base.columns:
@@ -274,16 +270,25 @@ def processar_sorteigs(df1, df2, config, especie, seed):
     captures_prev = {id_: 0 for id_ in resultat["ID"]}
     resum_sorteigs = []
 
-    for sorteig in ESPECIE_SORTEIGS[especie]:
-        conf_rows = config[config["Codi_Sorteig"] == sorteig].copy()
-        conf_rows["Tipus"] = conf_rows["Tipus"].apply(_parse_tipus)
+    for zona in zones:
+        sorteig = zona["nom"]
+        is_modalitat = bool(zona.get("modalitat"))
+        es_vedat = zona.get("tipus") == "Vedat"
+        captures = zona.get("captures", [])
+        estranger_pct = float(zona.get("estranger_pct", 10.0))
+        reserva_frac = float(zona.get("reserva_pct") or 0) / 100.0
+        parroquies_frac = (
+            {p: float(v) / 100.0 for p, v in (zona.get("parroquies") or {}).items()}
+            if es_vedat
+            else {}
+        )
 
         col_base = sorteig.replace(" ", "_")
         resultat[col_base] = np.nan
         resultat[f"Tipus_{col_base}"] = np.nan
 
         subset = df2[df2["Codi_Sorteig"] == sorteig].copy()
-        if especie == "Isard" and sorteig == "IS TCC":
+        if is_modalitat and "Modalitat" in df1.columns:
             extra_ids = df1.loc[
                 df1["Modalitat"].notna() & ~df1["ID"].isin(df2["ID"]), "ID"
             ]
@@ -292,7 +297,9 @@ def processar_sorteigs(df1, df2, config, especie, seed):
                     [subset, pd.DataFrame({"ID": extra_ids, "Codi_Sorteig": sorteig})],
                     ignore_index=True,
                 )
-        if subset.empty or conf_rows.empty:
+
+        total_quant = sum(int(c.get("quantitat", 0)) for c in captures)
+        if subset.empty or total_quant <= 0:
             continue
         if subset["ID"].duplicated().any():
             raise ValueError(f"ID duplicats al sorteig {sorteig}")
@@ -307,29 +314,32 @@ def processar_sorteigs(df1, df2, config, especie, seed):
             ),
             axis=1,
         )
-        if especie == "Isard" and sorteig == "IS TCC":
+        if is_modalitat:
             part = part[part["Modalitat"].isin(["A", "B"])].copy()
         subset_ids = set(part["ID"])
 
-        if especie == "Isard" and sorteig == "IS TCC":
-            total_cap = int(conf_rows["Quantitat"].sum())
-            if total_cap <= 0:
-                raise ValueError("Total de captures per IS TCC ha de ser > 0")
+        if is_modalitat:
             asignats = assignar_isards_sorteig_csv(
-                part, total_cap, seed=rng.randint(0, 2**31 - 1)
+                part,
+                total_quant,
+                estranger_pct=estranger_pct,
+                seed=rng.randint(0, 2**31 - 1),
             )
-            asignats["tipus"] = "+".join(conf_rows.iloc[0]["Tipus"])
+            primer = captures[0].get("tipus") if captures else []
+            asignats["tipus"] = "+".join(primer or [])
         else:
             tipus_quant = []
-            for _, r in conf_rows.iterrows():
-                tipus = ["Indeterminat"] if "Indeterminat" in r["Tipus"] else r["Tipus"]
-                tipus_quant.append(("+".join(tipus), int(r["Quantitat"])))
-            vedat = sorteig if (especie == "Isard" and sorteig != "IS TCC") else None
+            for c in captures:
+                tp = c.get("tipus") or []
+                tp = ["Indeterminat"] if "Indeterminat" in tp else tp
+                tipus_quant.append(("+".join(tp), int(c.get("quantitat", 0))))
             asignats = sorteig_individual(
                 part,
                 tipus_quant,
-                bool(conf_rows.iloc[0].get("Aleatori", False)),
-                vedat,
+                bool(zona.get("aleatori", True)),
+                parroquies_frac,
+                reserva_frac,
+                estranger_pct,
                 np.random.RandomState(rng.randint(0, 2**31 - 1)),
             )
 
@@ -383,10 +393,10 @@ def processar_sorteigs(df1, df2, config, especie, seed):
             parr_counts = parr.value_counts().to_dict()
 
         previs_counts = {}
-        for _, r in conf_rows.iterrows():
-            tp = _parse_tipus(r["Tipus"])
+        for c in captures:
+            tp = c.get("tipus") or []
             tip_label = "+".join(tp) if tp else "Indeterminat"
-            previs_counts[tip_label] = previs_counts.get(tip_label, 0) + int(r["Quantitat"])
+            previs_counts[tip_label] = previs_counts.get(tip_label, 0) + int(c.get("quantitat", 0))
 
         sol_licituds = sol_licituds_total
         resum_rows = []
@@ -417,7 +427,7 @@ def processar_sorteigs(df1, df2, config, especie, seed):
             resum[p] = v
         resum_sorteigs.append(resum)
 
-    capture_cols = [s.replace(" ", "_") for s in ESPECIE_SORTEIGS[especie]]
+    capture_cols = [z["nom"].replace(" ", "_") for z in zones]
     
     # Function to convert values: s1, s2, etc. -> 0, numeric values stay as numeric
     def convert_capture_value(val):
@@ -468,7 +478,7 @@ def processar_sorteigs(df1, df2, config, especie, seed):
 
 # ── DRAW WITH COLLES (IS TCC) ────────────────────────────────────────────────
 
-def assignar_isards_sorteig_csv(df, total_captures, seed=None):
+def assignar_isards_sorteig_csv(df, total_captures, estranger_pct=10.0, seed=None):
     import pandas as pd
     if total_captures <= 0:
         raise ValueError("total_captures ha de ser > 0 (reviseu 'Quantitat').")
@@ -485,7 +495,7 @@ def assignar_isards_sorteig_csv(df, total_captures, seed=None):
 
     # Calcula límit global d'estrangers
     total_non_strangers = (df["Estranger"] == "no").sum()
-    estranger_limit = math.floor(0.1 * total_captures)
+    estranger_limit = math.floor(estranger_pct / 100.0 * total_captures)
 
     df_colla = df[df["Modalitat"] == "A"]
     df_indiv = df[df["Modalitat"] == "B"]
