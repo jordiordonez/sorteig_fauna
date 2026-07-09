@@ -78,8 +78,14 @@ def _render_captures(z, zid):
 def _render_zone(zones, i):
     z = zones[i]
     zid = z["_id"]
-    titol = f"{i+1}. {z.get('nom','(sense nom)')}  ·  {z.get('tipus','TCC')}"
-    if z.get("modalitat"):
+    # Els widgets actualitzen z[...] més avall, així que per al títol llegim
+    # el valor viu del widget (guardat a session_state) i, si encara no existeix
+    # (primer render), fem servir el valor de la zona.
+    nom = st.session_state.get(f"nom_{zid}", z.get("nom")) or "(sense nom)"
+    tipus = st.session_state.get(f"tipus_{zid}", z.get("tipus", "TCC"))
+    modalitat = st.session_state.get(f"mod_{zid}", z.get("modalitat", False))
+    titol = f"{i+1}. {nom}  ·  {tipus}"
+    if modalitat:
         titol += " · modalitat A/B"
     with st.expander(titol, expanded=False):
         c1, c2, c3, c4 = st.columns([3, 2, 2, 2])
