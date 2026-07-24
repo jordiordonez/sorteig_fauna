@@ -4,13 +4,6 @@ import streamlit as st
 import unicodedata
 
 
-def sanitize_indeterminat(key: str) -> None:
-    """Ensure multiselect keeps only 'Indeterminat' if chosen."""
-    val = st.session_state.get(key, [])
-    if "Indeterminat" in val and len(val) > 1:
-        st.session_state[key] = ["Indeterminat"]
-
-
 # ── UTILITIES ────────────────────────────────────────────────────────────────
 
 def strip_accents(text: str) -> str:
@@ -59,28 +52,6 @@ def normalitza_estranger(valor) -> str:
 
 # ── CSV VALIDATION HELPERS ───────────────────────────────────────────────────
 
-def validar_csv_isard(df):
-    required = {
-        "ID",
-        "Modalitat",
-        "Colla_ID",
-        "Prioritat",
-        "anys_sense_captura",
-        "Parroquia",
-        "Estranger",
-    }
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Falten columnes: {', '.join(sorted(missing))}")
-
-
-def validar_csv_altres(df):
-    required = {"ID", "Prioritat", "anys_sense_captura", "Estranger"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"Falten columnes: {', '.join(sorted(missing))}")
-
-
 def validar_csv2(df):
     required = {"ID", "Codi_Sorteig"}
     missing = required - set(df.columns)
@@ -88,62 +59,130 @@ def validar_csv2(df):
         raise ValueError(f"Falten columnes: {', '.join(sorted(missing))}")
 
 
-# ── HELPER: CHOOSE NEXT CANDIDATE ────────────────────────────────────────────
+def colles_per_sota_minim(df1, df2, zones):
+    """Colles amb menys membres que l'efectiu mínim exigit (art. 56.1.a).
 
-def tria_candidat(
-    df,
-    assigned,
-    estr_cnt,
-    assignats,
-    parroquies_frac,
-    reserva_frac,
-    assignats_parr,
-    rng,
-    estranger_limit,
-    total_captures=None,
-):
-    import pandas as pd
-    pool = df[~df["ID"].isin(assigned)].copy()
-    if pool.empty:
-        return None
+    Retorna una llista de tuples ``(zona, colla_id, mida, minim)`` per a les
+    colles per sota del mínim en zones amb modalitat A/B. Llista buida si no
+    n'hi ha cap. Serveix per aturar el sorteig i demanar la correcció del CSV
+    d'inscrits.
+    """
+    if not {"Modalitat", "Colla_ID"}.issubset(df1.columns):
+        return []
+    curtes = []
+    for z in zones:
+        if not z.get("modalitat"):
+            continue
+        minim = int(z.get("min_colla", 0) or 0)
+        if minim <= 0:
+            continue
+        inscrits = df2[df2["Codi_Sorteig"] == z["nom"]]["ID"]
+        colles = df1[
+            df1["ID"].isin(inscrits) & (df1["Modalitat"] == "A")
+        ].dropna(subset=["Colla_ID"])
+        for cid, mida in colles.groupby("Colla_ID").size().items():
+            if mida < minim:
+                curtes.append((z["nom"], cid, int(mida), minim))
+    return curtes
 
-    if estr_cnt >= estranger_limit:
-        pool = pool[pool["Estranger"] == "no"]
-    if pool.empty:
-        return None
 
-    pool["rand"] = rng.random(len(pool))
+# ── HELPER: APPORTIONMENT (largest remainder) ────────────────────────────────
 
-    if parroquies_frac and "Parroquia" in pool.columns and total_captures:
-        # En un vedat, es reserva `reserva_frac` del total de captures amb
-        # prioritat parroquial, repartida segons `parroquies_frac` (fraccions
-        # que sumen ~1). Una parròquia rep preferència (quota_flag=1) mentre no
-        # hagi exhaurit la seva part d'aquesta reserva.
-        captures_with_parish_priority = total_captures * reserva_frac
-
-        quotas_real = {}
-        for parr, frac in parroquies_frac.items():
-            parish_quota = frac * captures_with_parish_priority
-            already_assigned = assignats_parr.get(parr, 0)
-            quotas_real[parr] = 1 if already_assigned < parish_quota else 0
-
-        pool["quota_flag"] = pool["Parroquia"].apply(
-            lambda p: quotas_real.get(p, 0)
+def _reparteix_residu_mes_gran(total, pesos):
+    """Reparteix `total` captures (enter) entre les claus de `pesos` pel mètode
+    del residu més gran. La suma dels resultats és sempre exactament `total`."""
+    suma = sum(pesos.values())
+    if total <= 0 or suma <= 0:
+        return {k: 0 for k in pesos}
+    exacte = {k: total * p / suma for k, p in pesos.items()}
+    quota = {k: int(math.floor(v)) for k, v in exacte.items()}
+    falten = total - sum(quota.values())
+    if falten > 0:
+        ordenat = sorted(
+            exacte, key=lambda k: exacte[k] - math.floor(exacte[k]), reverse=True
         )
-        order_cols, asc = ["Prioritat", "quota_flag", "anys_sense_captura", "rand"], [
-            True,
-            False,
-            False,
-            True,
-        ]
-    else:
-        order_cols, asc = ["Prioritat", "anys_sense_captura", "rand"], [
-            True,
-            False,
-            True,
-        ]
+        for k in ordenat[:falten]:
+            quota[k] += 1
+    return quota
 
-    return pool.sort_values(order_cols, ascending=asc).index[0]
+
+def _cupos_parroquials(bloc, parroquies_frac, disponibles):
+    """Cupo enter de captures reservades per a cada parròquia d'un vedat.
+
+    Es reparteix `bloc` captures segons la superfície (`parroquies_frac`) pel
+    residu més gran. Si una parròquia no té prou censats concernits
+    (`disponibles`) per cobrir el seu cupo, es fixa al màxim que pot cobrir i
+    **es refà el repartiment de les captures restants** entre les parròquies que
+    encara tenen marge, iterativament (art. 55.1.a.i). El que no es pugui cobrir
+    amb parroquians queda fora del bloc reservat i caurà al sorteig obert.
+    """
+    fixats = {}
+    actives = {p: f for p, f in parroquies_frac.items() if f > 0}
+    restant = bloc
+    while actives and restant > 0:
+        quota = _reparteix_residu_mes_gran(restant, actives)
+        curts = [p for p in quota if quota[p] > disponibles.get(p, 0)]
+        if not curts:
+            fixats.update(quota)
+            break
+        for p in curts:
+            fixats[p] = disponibles.get(p, 0)
+            restant -= fixats[p]
+            del actives[p]
+    return {p: fixats.get(p, 0) for p in parroquies_frac}
+
+
+# ── HELPER: ORDER A POOL / PICK WINNERS ──────────────────────────────────────
+
+def _ordena_pool(pool, extra_cols=None):
+    """Índexs d'un pool ordenats per prioritat (asc), amb `extra_cols`
+    intercalades tot seguit, i després anys sense captura (desc) i rand (asc)."""
+    extra = extra_cols or []
+    cols = ["Prioritat"] + extra + ["anys_sense_captura", "rand"]
+    asc = [True] + [True] * len(extra) + [False, True]
+    return pool.sort_values(cols, ascending=asc).index
+
+
+def _sorteig_reservat(df, cupos, ordre_parr):
+    """Fase reservada d'un vedat (art. 55.1.a+b+d): NOMÉS parroquians. Ordre per
+    prioritat i, a igualtat, per l'ordre de parròquies sortejat, respectant el
+    cupo enter de cada parròquia."""
+    rank = {p: i for i, p in enumerate(ordre_parr)}
+    elegibles = [p for p, c in cupos.items() if c > 0]
+    pool = df[df["Parroquia"].isin(elegibles)].copy()
+    if pool.empty:
+        return []
+    pool["_parr_rank"] = pool["Parroquia"].map(rank)
+    usats = {p: 0 for p in cupos}
+    guanyadors = []
+    for idx in _ordena_pool(pool, extra_cols=["_parr_rank"]):
+        p = df.at[idx, "Parroquia"]
+        if usats[p] < cupos[p]:
+            guanyadors.append(idx)
+            usats[p] += 1
+    return guanyadors
+
+
+def _sorteig_obert(df, ja_assignats, n, estranger_limit, estr_inicial=0):
+    """Fase oberta (art. 55.1.e / TCC): tothom no adjudicatari, per prioritat.
+    Els estrangers surten del sorteig quan s'arriba al sostre; la llista es
+    recorre una sola vegada, de manera que mai no es penja."""
+    if n <= 0:
+        return []
+    pool = df.loc[~df.index.isin(ja_assignats)]
+    if pool.empty:
+        return []
+    guanyadors = []
+    estr = estr_inicial
+    for idx in _ordena_pool(pool):
+        if len(guanyadors) >= n:
+            break
+        if df.at[idx, "Estranger"] == "si" and estr >= estranger_limit:
+            continue
+        guanyadors.append(idx)
+        if df.at[idx, "Estranger"] == "si":
+            estr += 1
+    return guanyadors
 
 
 # ── HELPER: INDIVIDUAL DRAW (no colles) ──────────────────────────────────────
@@ -156,89 +195,56 @@ def sorteig_individual(
     df["Estranger"] = df["Estranger"].apply(normalitza_estranger)
     if "Parroquia" in df.columns:
         df["Parroquia"] = df["Parroquia"].apply(normalitza_parroquia)
-
-    df["assigned"] = False
-    df["ordre"] = pd.Series([pd.NA] * len(df), dtype="Int64")
-    df["tipus"] = pd.Series([pd.NA] * len(df), dtype="object")
-    assignats_parr = {k: 0 for k in (parroquies_frac or {})}
+    df["rand"] = rng.random(len(df))
 
     captures_pool = [t for t, q in tipus_quant for _ in range(q)]
     total_caps = len(captures_pool)
     estranger_limit = math.floor(estranger_pct / 100.0 * total_caps)
-    if not ordre_aleatori:
-        captures_pool = captures_pool.copy()  # keep deterministic order
 
-    ordre, estrangers, assignats = 1, 0, 0
+    es_vedat = bool(parroquies_frac) and reserva_frac > 0
+    guanyadors = []
+    traça = None
 
-    if ordre_aleatori:
-        while captures_pool and not df.loc[~df["assigned"]].empty:
-            idx = tria_candidat(
-                df,
-                set(df[df["assigned"]]["ID"]),
-                estrangers,
-                assignats,
-                parroquies_frac,
-                reserva_frac,
-                assignats_parr,
-                rng,
-                estranger_limit,
-                total_caps,
-            )
-            if idx is None:
-                break
-            tipus = rng.choice(captures_pool)
-            captures_pool.remove(tipus)
-
-            df.loc[idx, ["assigned", "ordre", "tipus"]] = [True, ordre, tipus]
-
-            assignats += 1
-            if df.at[idx, "Estranger"] == "si":
-                estrangers += 1
-            if parroquies_frac and df.at[idx, "Parroquia"] in assignats_parr:
-                assignats_parr[df.at[idx, "Parroquia"]] += 1
-            ordre += 1
+    if es_vedat:
+        bloc = int(round(total_caps * reserva_frac))
+        parroquies = [str(p) for p in parroquies_frac.keys()]
+        if len(parroquies) > 1:
+            ordre_parr = [str(p) for p in rng.permutation(parroquies)]
+        else:
+            ordre_parr = parroquies
+        disponibles = {p: int((df["Parroquia"] == p).sum()) for p in parroquies}
+        cupos = _cupos_parroquials(bloc, parroquies_frac, disponibles)
+        traça = {"bloc_reservat": bloc, "ordre_parroquial": ordre_parr, "cupos": cupos}
+        # Fase 1 — bloc reservat, només parroquians.
+        guanyadors += _sorteig_reservat(df, cupos, ordre_parr)
+        # Fase 2 — la resta (l'altre 50% + el que el bloc no hagi pogut cobrir
+        # amb parroquians) s'obre a tothom no adjudicatari.
+        restants = total_caps - len(guanyadors)
+        guanyadors += _sorteig_obert(df, guanyadors, restants, estranger_limit)
     else:
-        for tipus, q in tipus_quant:
-            for _ in range(q):
-                idx = tria_candidat(
-                    df,
-                    set(df[df["assigned"]]["ID"]),
-                    estrangers,
-                    assignats,
-                    parroquies_frac,
-                    reserva_frac,
-                    assignats_parr,
-                    rng,
-                    estranger_limit,
-                    total_caps,
-                )
-                if idx is None:
-                    break
-                df.loc[idx, ["assigned", "ordre", "tipus"]] = [True, ordre, tipus]
+        guanyadors += _sorteig_obert(df, [], total_caps, estranger_limit)
 
-                assignats += 1
-                if df.at[idx, "Estranger"] == "si":
-                    estrangers += 1
-                if parroquies_frac and df.at[idx, "Parroquia"] in assignats_parr:
-                    assignats_parr[df.at[idx, "Parroquia"]] += 1
-                ordre += 1
+    # Assignació de tipus als guanyadors, en l'ordre d'adjudicació (que és l'ordre
+    # de prioritat). Si l'ordre de la zona és aleatori, es barreja el pool.
+    if ordre_aleatori:
+        pool_tipus = list(captures_pool)
+        rng.shuffle(pool_tipus)
+    else:
+        pool_tipus = captures_pool
+
+    df["ordre"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="Int64")
+    df["tipus"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="object")
+    for pos, idx in enumerate(guanyadors):
+        df.at[idx, "ordre"] = pos + 1
+        df.at[idx, "tipus"] = pool_tipus[pos] if pos < len(pool_tipus) else pd.NA
 
     cols = ["ID", "ordre", "tipus", "Estranger"]
     if "Parroquia" in df.columns:
         cols.append("Parroquia")
     out = df[cols].copy()
     out["ordre"] = out["ordre"].astype("Int64")
+    out.attrs["traça"] = traça  # ordre parroquial sortejat + cupos (auditabilitat)
     return out
-
-
-# ── HELPER: PARSE 'Tipus' FIELD ──────────────────────────────────────────────
-
-def _parse_tipus(value):
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    return [t.strip() for t in str(value).split(",") if t.strip()]
 
 
 # ── MAIN: PROCESSAR SORTEIGS ────────────────────────────────────────────────
@@ -269,6 +275,7 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
 
     captures_prev = {id_: 0 for id_ in resultat["ID"]}
     resum_sorteigs = []
+    traces_vedats = {}  # zona -> {ordre_parroquial, cupos, bloc_reservat}
 
     for zona in zones:
         sorteig = zona["nom"]
@@ -325,8 +332,12 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
                 estranger_pct=estranger_pct,
                 seed=rng.randint(0, 2**31 - 1),
             )
+            # El tipus només s'assigna als ADJUDICATARIS (ordre no nul); els
+            # substituts no han de portar cap tipus de captura.
             primer = captures[0].get("tipus") if captures else []
-            asignats["tipus"] = "+".join(primer or [])
+            tipus_label = "+".join(primer or [])
+            asignats["tipus"] = np.nan
+            asignats.loc[asignats["ordre"].notna(), "tipus"] = tipus_label
         else:
             tipus_quant = []
             for c in captures:
@@ -342,6 +353,9 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
                 estranger_pct,
                 np.random.RandomState(rng.randint(0, 2**31 - 1)),
             )
+            traça_zona = asignats.attrs.get("traça")
+            if traça_zona:
+                traces_vedats[sorteig] = traça_zona
 
         asignats = asignats.rename(
             columns={"ordre": f"ordre_{col_base}", "tipus": f"tipus_{col_base}"}
@@ -451,34 +465,45 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
     resultat["Nou_Anys_sense_captura"] = resultat.apply(
         lambda r: r["anys_sense_captura"] + 1 if not r["te_capture"] else 0, axis=1
     )
-    
-    # Check for "Mascle" captures using the same conversion logic
-    def has_mascle_capture(row):
-        for col in capture_cols:
-            tipus_col = f"Tipus_{col}"
-            if tipus_col in resultat.columns:
-                tipus_val = row[tipus_col]
-                capture_val = convert_capture_value(row[col])
-                # Check if it's a "Mascle" type AND an actual capture (> 0)
-                if (pd.notna(tipus_val) and "Mascle" in str(tipus_val) 
-                    and capture_val > 0):
-                    return True
-        return False
-    
-    resultat["Nova_prioritat"] = resultat.apply(
-        lambda r: (
-            4 if has_mascle_capture(r) else (4 if r["te_capture"] else 2)
-        ),
-        axis=1,
-    )
-    
+
+    # `Nova_prioritat` és una estimació de sortida: 4 als adjudicataris, 2 als
+    # que s'han presentat i no han guanyat. Les prioritats 1 (femella caçada,
+    # art. 54.1.a) i 3 (no presentats) les fixen els tècnics del Govern, perquè
+    # depenen d'informació que l'app no té (captura efectuada, cens complet).
+    resultat["Nova_prioritat"] = resultat["te_capture"].map(lambda x: 4 if x else 2)
+
     resultat.drop(columns=["te_capture"], inplace=True)
+    resultat.attrs["traces_vedats"] = traces_vedats
     return resultat, resum_sorteigs
 
 
 # ── DRAW WITH COLLES (IS TCC) ────────────────────────────────────────────────
 
+def _round_sorteig(x, rng):
+    """Arrodoneix al valor enter més proper. En cas d'empat exacte a .5, sorteja
+    cap a quin costat cau (art. 56: elimina el romanent decimal)."""
+    baix = math.floor(x)
+    frac = x - baix
+    if frac < 0.5:
+        return int(baix)
+    if frac > 0.5:
+        return int(baix) + 1
+    return int(baix) + (1 if rng.random() < 0.5 else 0)
+
+
 def assignar_isards_sorteig_csv(df, total_captures, estranger_pct=10.0, seed=None):
+    """Sorteig de l'isard en TCC amb modalitat de colla (A) i individual (B),
+    segons els art. 56 i 57 del Reglament de caça del 4-6-2025.
+
+    * Ràtio EXACTA = sol·licitants / captures (art. 56.2), sense arrodonir.
+    * Captures de cada modalitat = arrodoniment al més proper de (n_mod / ràtio);
+      en empat a .5, se sorteja el sentit. Així no queda romanent decimal.
+    * Base de cada colla = part entera(mida / ràtio) (art. 56.4.a).
+    * Captures restants de colla = se sortegen entre els no adjudicataris de la
+      modalitat colla, per prioritat, amb un MÀXIM D'UNA per colla (art. 56.4.b).
+    * Sostre d'estrangers ÚNIC per al sorteig (no partit per modalitat), sobre
+      les captures ofertes (art. 53.4).
+    """
     import pandas as pd
     if total_captures <= 0:
         raise ValueError("total_captures ha de ser > 0 (reviseu 'Quantitat').")
@@ -492,103 +517,80 @@ def assignar_isards_sorteig_csv(df, total_captures, estranger_pct=10.0, seed=Non
     df["adjudicats"] = 0
     df["ordre"] = np.nan
     df["Estranger"] = df["Estranger"].apply(normalitza_estranger)
+    df["rand"] = rng.random(len(df))
 
-    # Calcula límit global d'estrangers
-    total_non_strangers = (df["Estranger"] == "no").sum()
     estranger_limit = math.floor(estranger_pct / 100.0 * total_captures)
 
-    df_colla = df[df["Modalitat"] == "A"]
-    df_indiv = df[df["Modalitat"] == "B"]
-
-    total_applicants = len(df_colla) + len(df_indiv)
+    idx_A = df.index[df["Modalitat"] == "A"]
+    idx_B = df.index[df["Modalitat"] == "B"]
+    nA, nB = len(idx_A), len(idx_B)
+    total_applicants = nA + nB
     if total_applicants == 0:
         raise ValueError("No hi ha cap caçador amb Modalitat A o B")
 
-    estranger_limit_A = round(estranger_limit * len(df_colla) / total_applicants)
-    estranger_limit_B = estranger_limit - estranger_limit_A
+    ratio = total_applicants / total_captures            # exacta (art. 56.2)
+    n_colla = _round_sorteig(nA / ratio, rng)            # al més proper
+    n_colla = max(0, min(n_colla, total_captures))
+    n_indiv = total_captures - n_colla                   # sense romanent decimal
 
-    ordre_counter = 1
-    estrangers_A = 0
-    estrangers_B = 0
+    estat = {"ordre": 1, "estr": 0}
 
-    ratio = math.ceil(total_applicants / total_captures)
-    n_indiv = round(total_captures * len(df_indiv) / total_applicants)
-    n_colla = total_captures - n_indiv
+    def assigna(idx):
+        """Adjudica una captura a `idx`. Retorna False si és estranger i ja s'ha
+        arribat al sostre (llavors queda fora, sense penjar el sorteig)."""
+        if df.at[idx, "Estranger"] == "si" and estat["estr"] >= estranger_limit:
+            return False
+        df.at[idx, "ordre"] = estat["ordre"]
+        df.at[idx, "adjudicats"] = 1
+        estat["ordre"] += 1
+        if df.at[idx, "Estranger"] == "si":
+            estat["estr"] += 1
+        return True
 
-    colles = df_colla.groupby("Colla_ID").size().reset_index(name="caçadors")
-    colles["assignats"] = (colles["caçadors"] // ratio).astype(int)
-    leftover = n_colla - colles["assignats"].sum()
-    for _ in range(leftover):
-        colles["rati"] = colles["assignats"] / colles["caçadors"]
-        cid = (
-            colles.loc[np.isclose(colles["rati"], colles["rati"].min())]
-            .sample(1, random_state=rng)["Colla_ID"]
-            .iat[0]
-        )
-        colles.loc[colles["Colla_ID"] == cid, "assignats"] += 1
-
-    for _, row in colles.iterrows():
-        cid, to_assign = row["Colla_ID"], int(row["assignats"])
-        while to_assign:
-            sub = df[
-                (df["Modalitat"] == "A")
-                & (df["Colla_ID"] == cid)
-                & (df["adjudicats"] == 0)
-            ]
-            if sub.empty:
+    # ── Modalitat colla: base = part entera(mida / ràtio) ──
+    colles = df.loc[idx_A].groupby("Colla_ID").size()
+    assignats_colla = 0
+    for cid, mida in colles.items():
+        nbase = int(math.floor(mida / ratio))
+        if nbase <= 0:
+            continue
+        membres = df.loc[idx_A]
+        membres = membres[membres["Colla_ID"] == cid]
+        fets = 0
+        for idx in _ordena_pool(membres):
+            if fets >= nbase:
                 break
-            group = sub.copy()
-            group["rand"] = rng.random(len(group))
-            idxs = group.sort_values(
-                ["Prioritat", "anys_sense_captura", "rand"],
-                ascending=[True, False, True],
-            ).index[: min(to_assign, len(group))]
+            if assigna(idx):
+                fets += 1
+        assignats_colla += fets
 
-            for idx in idxs:
-                if (
-                    df.at[idx, "Estranger"] == "si"
-                    and estrangers_A >= estranger_limit_A
-                ):
-                    continue
-                if df.at[idx, "adjudicats"] == 0:
-                    df.at[idx, "ordre"] = ordre_counter
-                    df.at[idx, "adjudicats"] = 1
-                    ordre_counter += 1
-                    if df.at[idx, "Estranger"] == "si":
-                        estrangers_A += 1
-                    to_assign -= 1
-
-    rem = n_indiv
-    while rem:
-        sub = df[(df["Modalitat"] == "B") & (df["adjudicats"] == 0)]
-        if sub.empty:
-            break
-        group = sub.copy()
-        group["rand"] = rng.random(len(group))
-        idxs = group.sort_values(
-            ["Prioritat", "anys_sense_captura", "rand"], ascending=[True, False, True]
-        ).index[: min(rem, len(group))]
-
-        for idx in idxs:
-            if df.at[idx, "Estranger"] == "si" and estrangers_B >= estranger_limit_B:
+    # ── Captures restants de colla: sorteig entre no adjudicataris de la
+    #    modalitat colla, per prioritat, màxim UNA per colla (art. 56.4.b) ──
+    restants = n_colla - assignats_colla
+    if restants > 0:
+        pool = df.loc[idx_A]
+        pool = pool[pool["adjudicats"] == 0]
+        colles_amb_restant = set()
+        fets = 0
+        for idx in _ordena_pool(pool):
+            if fets >= restants:
+                break
+            cid = df.at[idx, "Colla_ID"]
+            if cid in colles_amb_restant:
                 continue
-            if df.at[idx, "adjudicats"] == 0:
-                df.at[idx, "ordre"] = ordre_counter
-                df.at[idx, "adjudicats"] = 1
-                ordre_counter += 1
-                if df.at[idx, "Estranger"] == "si":
-                    estrangers_B += 1
-                rem -= 1
+            if assigna(idx):
+                colles_amb_restant.add(cid)
+                fets += 1
 
-    df["nova_prioritat"] = df.apply(
-        lambda r: 5 + r["adjudicats"] - 1 if r["adjudicats"] > 0 else r["Prioritat"],
-        axis=1,
-    )
-    df["nova_prioritat Any següent"] = df["adjudicats"].apply(
-        lambda x: 4 if x > 0 else 2
-    )
-    df["nou_anys_sense_captura"] = df.apply(
-        lambda r: 0 if r["adjudicats"] else r["anys_sense_captura"] + 1, axis=1
-    )
+    # ── Modalitat individual ──
+    pool = df.loc[idx_B]
+    pool = pool[pool["adjudicats"] == 0]
+    fets = 0
+    for idx in _ordena_pool(pool):
+        if fets >= n_indiv:
+            break
+        if assigna(idx):
+            fets += 1
+
     df["ordre"] = df["ordre"].astype("Int64")
     return df

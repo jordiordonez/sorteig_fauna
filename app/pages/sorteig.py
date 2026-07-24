@@ -102,11 +102,22 @@ def _render_zone(zones, i):
             )
         )
 
-        z["modalitat"] = st.checkbox(
+        mc1, mc2 = st.columns([3, 2])
+        z["modalitat"] = mc1.checkbox(
             "Modalitat A/B (colles + individual, com l'IS TCC)",
             value=z.get("modalitat", False),
             key=f"mod_{zid}",
         )
+        if z["modalitat"]:
+            z["min_colla"] = int(
+                mc2.number_input(
+                    "Efectiu mínim per colla",
+                    min_value=0, step=1,
+                    value=int(z.get("min_colla", config.MIN_COLLA_DEFAULT)),
+                    key=f"mincolla_{zid}",
+                    help="Colles amb menys membres aturen el sorteig (art. 56.1.a). 0 = no comprovar.",
+                )
+            )
 
         if z["tipus"] == "Vedat":
             z["reserva_pct"] = float(
@@ -365,6 +376,21 @@ if st.session_state.get("run_draw"):
             mask = df2["Codi_Sorteig"].isin(mod_zone_names) & df2["ID"].isin(ids_to_skip)
             df2 = df2.loc[~mask].copy()
 
+    # ── Validació de l'efectiu mínim per colla (art. 56.1.a) ──────────────
+    # Bloquejant: una colla per sota del mínim no es pot inscriure, així que si
+    # n'hi ha cap, el que cal corregir és el fitxer d'inscrits, no el sorteig.
+    curtes = draw_logic.colles_per_sota_minim(df1, df2, zones_clean)
+    if curtes:
+        st.error(
+            "🚫 Hi ha colles per sota de l'efectiu mínim exigit (art. 56.1.a). "
+            "El sorteig no s'executa: cal corregir el fitxer d'inscrits i tornar-lo a carregar."
+        )
+        st.table(
+            pd.DataFrame(curtes, columns=["Zona", "Colla_ID", "Membres", "Mínim exigit"])
+        )
+        st.session_state["run_draw"] = False
+        st.stop()
+
     # ── Executar ──────────────────────────────────────────────────────────
     try:
         resultat, resums = draw_logic.processar_sorteigs(df1, df2, zones_clean, especie, seed)
@@ -377,6 +403,26 @@ if st.session_state.get("run_draw"):
 
     st.session_state["resultat"] = resultat
     st.session_state["resums"] = resums
+
+    # ── Traça dels vedats: ordre parroquial sortejat i cupos (art. 55.1.b) ──
+    traces = resultat.attrs.get("traces_vedats") or {}
+    if traces:
+        with st.expander("🎲 Ordre parroquial sortejat i cupos (per als vedats)"):
+            for zona, t in traces.items():
+                ordre = " · ".join(
+                    f"{i+1}r {p}" for i, p in enumerate(t.get("ordre_parroquial", []))
+                )
+                st.markdown(f"**{zona}** — bloc reservat: {t.get('bloc_reservat')} captures")
+                st.caption(f"Ordre sortejat: {ordre}")
+                cupos = t.get("cupos", {})
+                if cupos:
+                    st.table(
+                        pd.DataFrame(
+                            [(p, c) for p, c in cupos.items()],
+                            columns=["Parròquia", "Cupo reservat"],
+                        )
+                    )
+
     st.subheader("Resultats")
     capture_cols = [z["nom"].replace(" ", "_") for z in zones_clean]
     for col in capture_cols:

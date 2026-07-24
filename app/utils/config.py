@@ -80,6 +80,7 @@ TIPUS_ZONA = ["Vedat", "TCC"]
 
 ESTRANGER_PCT_DEFAULT = 10.0  # sostre d'estrangers per zona, en %
 RESERVA_PCT_DEFAULT = 50.0    # % de captures reservat als locals en un vedat
+MIN_COLLA_DEFAULT = 6         # efectiu mínim per colla (art. 56.1.a); 0 = sense comprovar
 
 # Espècies "de fàbrica". Se'n poden afegir de noves (categoria "Altres").
 ESPECIES_BASE = ["Isard", "Cabirol", "Mufló"]
@@ -105,6 +106,7 @@ DEFAULT_CONFIG = {
             "nom": "IS TCC",
             "tipus": "TCC",
             "modalitat": True,  # sorteig amb modalitat A/B (colles + individual)
+            "min_colla": MIN_COLLA_DEFAULT,  # efectiu mínim per colla (art. 56.1.a)
             "aleatori": True,
             "estranger_pct": ESTRANGER_PCT_DEFAULT,
             "reserva_pct": None,
@@ -218,6 +220,7 @@ def new_zone(nom="Nova zona", tipus="TCC"):
         "nom": nom,
         "tipus": tipus,
         "modalitat": False,
+        "min_colla": MIN_COLLA_DEFAULT,
         "aleatori": True,
         "estranger_pct": ESTRANGER_PCT_DEFAULT,
         "reserva_pct": RESERVA_PCT_DEFAULT if tipus == "Vedat" else None,

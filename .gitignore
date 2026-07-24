@@ -1,0 +1,11 @@
+# Dades reals de caçadors — NO es publiquen
+proves/
+
+# Artefactes de Python
+__pycache__/
+*.pyc
+.DS_Store
+
+# Documents interns — no es publiquen
+propostes.md
+correu_resposta_hector.md
