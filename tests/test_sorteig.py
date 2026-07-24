@@ -60,18 +60,16 @@ def _run_isard(seed=42):
 
 # ── HELPERS D'APPORTIONMENT ──────────────────────────────────────────────────
 
-def test_residu_mes_gran():
+def test_cupo_parroquial_per_superficie():
+    # Cupo enter (sostre de preferència) pel residu més gran: 24 -> 12/6/6/0.
     fr = {"ALV": 0.522, "SJ": 0.241, "LM": 0.234, "EE": 0.003}
     assert d._reparteix_residu_mes_gran(24, fr) == {"ALV": 12, "SJ": 6, "LM": 6, "EE": 0}
 
 
-def test_cupos_redistribucio_iterativa():
-    fr = {"ALV": 0.522, "SJ": 0.241, "LM": 0.234, "EE": 0.003}
-    # La Massana només 4 censats: es refà el repartiment dels 20 restants.
-    assert d._cupos_parroquials(24, fr, {"ALV": 99, "SJ": 99, "LM": 4, "EE": 0}) == \
-        {"ALV": 14, "SJ": 6, "LM": 4, "EE": 0}
-    # Pocs censats en total (20): el bloc no s'omple, la resta anirà al sorteig obert.
-    assert sum(d._cupos_parroquials(24, fr, {"ALV": 10, "SJ": 6, "LM": 4, "EE": 0}).values()) == 20
+def test_round_meitat():
+    assert d._round_meitat(24.0) == 24
+    assert d._round_meitat(4.5) == 5   # 50% de 9, mitjos amunt
+    assert d._round_meitat(4.4) == 4
 
 
 def test_round_sorteig():
@@ -116,21 +114,46 @@ def test_modalitat_ratio_i_restants():
     assert ((per - base).dropna() <= 1).all()     # cap colla amb més d'1 restant
 
 
-# ── D — VEDATS: BLOC RESERVAT NOMÉS PARROQUIANS (art. 55.1) ──────────────────
+# ── D — VEDATS: PREFERÈNCIA PARROQUIAL JERÀRQUICA (art. 55.1) ────────────────
 
 def _norm(x):
     return d.normalitza_parroquia(x)
 
 
-def test_vedat_bloc_no_cobert_passa_al_general():
-    """Si no hi ha prou censats concernits per omplir el 50% reservat, les
-    captures no cobertes cauen al sorteig general (art. 55.3, cas parroquial)."""
+def test_vedat_prioritat_mana_sobre_residencia():
+    """1r criteri: la prioritat individual. Un no resident amb millor prioritat
+    guanya davant d'un resident amb pitjor prioritat."""
     import numpy as np
     rows = [
-        {"ID": 100 + i, "Prioritat": 2, "anys_sense_captura": 0,
-         "Estranger": "no", "Parroquia": "La Massana"} for i in range(2)
+        {"ID": 100 + i, "Prioritat": 4, "anys_sense_captura": 0,
+         "Estranger": "no", "Parroquia": "La Massana"} for i in range(20)   # residents, pitjor prioritat
     ] + [
         {"ID": 200 + i, "Prioritat": 2, "anys_sense_captura": 0,
+         "Estranger": "no", "Parroquia": "Encamp"} for i in range(20)       # no residents, millor prioritat
+    ]
+    df = pd.DataFrame(rows)
+    out = d.sorteig_individual(
+        df, [("Indeterminat", 8)], True, {"La Massana": 1.0}, 0.5, 10.0,
+        np.random.RandomState(1),
+    )
+    v = out[out["ordre"].notna()].sort_values("ordre")
+    # Els no residents (prioritat 2) s'enduen les 8 captures; els residents (4) cap.
+    assert (v["Parroquia"] == "Encamp").all()
+
+
+def test_vedat_preferencia_com_a_sostre():
+    """2n criteri: a IGUALTAT de prioritat, els residents passen davant, fins al
+    seu cupo (sostre). Passat el sostre, deixen de tenir preferència."""
+    import numpy as np
+    # Tots prioritat 2. Residents amb anys=0, no residents amb anys=5 (millor
+    # desempat final). Cupo La Massana = round(8*0.5)=4. Els 4 primers han de ser
+    # residents (preferència); els 4 següents, no residents (ja sense preferència,
+    # guanyen per anys).
+    rows = [
+        {"ID": 100 + i, "Prioritat": 2, "anys_sense_captura": 0,
+         "Estranger": "no", "Parroquia": "La Massana"} for i in range(20)
+    ] + [
+        {"ID": 200 + i, "Prioritat": 2, "anys_sense_captura": 5,
          "Estranger": "no", "Parroquia": "Encamp"} for i in range(20)
     ]
     df = pd.DataFrame(rows)
@@ -138,65 +161,37 @@ def test_vedat_bloc_no_cobert_passa_al_general():
         df, [("Indeterminat", 8)], True, {"La Massana": 1.0}, 0.5, 10.0,
         np.random.RandomState(1),
     )
-    adj = out[out["ordre"].notna()]
-    assert len(adj) == 8  # totes les captures s'adjudiquen
-    locals_ = adj[adj["Parroquia"] == "La Massana"]
-    assert len(locals_) == 2  # només els 2 censats que existeixen
-    assert out.attrs["traça"]["cupos_per_tipus"]["Indeterminat"] == {"La Massana": 2}
-
-
-def test_reserva_per_tipus():
-    """El 50% reservat es reparteix per tipus de captura, sense inflar per
-    arrodoniment: 2 trofeus + 10 selectius -> reserva 6 = 1 trofeu + 5 selectius;
-    3+3+3 -> reserva 5 = 2+2+1 (no 6)."""
-    import numpy as np
-    # Censats amb prioritat 2 i no residents amb prioritat 1 (millor): així els no
-    # residents s'enduen tota la fase oberta i els censats es queden EXACTAMENT
-    # amb la reserva, cosa que permet comprovar-la aïllada.
-    rows = [
-        {"ID": 100 + i, "Prioritat": 2, "anys_sense_captura": 0,
-         "Estranger": "no", "Parroquia": "La Massana"} for i in range(40)
-    ] + [
-        {"ID": 200 + i, "Prioritat": 1, "anys_sense_captura": 0,
-         "Estranger": "no", "Parroquia": "Encamp"} for i in range(40)
-    ]
-    df = pd.DataFrame(rows)
-
-    out = d.sorteig_individual(
-        df, [("Trofeu", 2), ("Selectiu", 10)], True, {"La Massana": 1.0}, 0.5, 10.0,
-        np.random.RandomState(1),
-    )
-    assert out.attrs["traça"]["reserva_total"] == 6
-    assert out.attrs["traça"]["reserva_per_tipus"] == {"Trofeu": 1, "Selectiu": 5}
+    assert out.attrs["traça"]["cupos"] == {"La Massana": 4}
+    v = out[out["ordre"].notna()].sort_values("ordre")
+    assert (v.head(4)["Parroquia"] == "La Massana").all()   # sostre: 4 residents primer
+    assert (v.tail(4)["Parroquia"] == "Encamp").all()       # passat el sostre, no residents
     resid = out[out["ordre"].notna() & (out["Parroquia"] == "La Massana")]
-    assert (resid["tipus"] == "Trofeu").sum() == 1
-    assert (resid["tipus"] == "Selectiu").sum() == 5
-
-    out2 = d.sorteig_individual(
-        df, [("A", 3), ("B", 3), ("C", 3)], True, {"La Massana": 1.0}, 0.5, 10.0,
-        np.random.RandomState(2),
-    )
-    assert out2.attrs["traça"]["reserva_total"] == 5  # 4,5 -> 5, no 6
-    assert out2.attrs["traça"]["reserva_per_tipus"] == {"A": 2, "B": 2, "C": 1}
+    assert len(resid) == 4  # exactament el cupo, ni més (no arriben per anys)
 
 
-def test_vedat_bloc_reservat_nomes_parroquians():
+def test_vedat_prioritat_monotona_a_les_proves():
+    """Sobre les dades reals: dins de cada vedat, la prioritat efectiva mai no
+    disminueix a mesura que avança l'ordre d'adjudicació (la prioritat mana)."""
     r, _ = _run_isard()
-    casos = {
-        "IS VCRS": ["Canillo", "Ordino"],
-        "IS VCX": ["La Massana"],
-        "IS VCE": ["La Massana", "Sant Julià de Lòria", "Andorra la Vella", "Escaldes-Engordany"],
-    }
-    for zona, parrs in casos.items():
+    for zona in ["IS VCRS", "IS VCX", "IS VCE"]:
         col = zona.replace(" ", "_")
         v = r[pd.to_numeric(r[col], errors="coerce").notna()].copy()
         v["o"] = pd.to_numeric(v[col])
         v = v.sort_values("o")
-        v["pn"] = v["Parroquia"].apply(_norm)
-        bloc = round(CAPS_IS[zona] * 0.5)
-        primers = v.head(bloc)
-        assert primers["pn"].isin(parrs).all(), f"{zona}: no residents al bloc reservat"
-        assert v["pn"].isin(parrs).sum() >= bloc, f"{zona}: censats per sota del 50%"
+        assert list(v["Prioritat"]) == sorted(v["Prioritat"]), f"{zona}: prioritat no monòtona"
+
+
+def test_vedat_cupo_es_sostre_de_preferencia():
+    """El cupo per parròquia limita la PREFERÈNCIA, no el total: els residents no
+    reben preferència més enllà del cupo, però encara poden guanyar per prioritat."""
+    r, _ = _run_isard()
+    # A IS VCE el cupo de superfície és 12/6/6/0; comprovem que la traça el porta.
+    t = r.attrs["traces_vedats"]["IS VCE"]
+    assert t["cupos"] == {
+        "Andorra la Vella": 12, "Sant Julià de Lòria": 6,
+        "La Massana": 6, "Escaldes-Engordany": 0,
+    }
+    assert t["reserva_total"] == 24
 
 
 # ── E / H — SOSTRE D'ESTRANGERS ──────────────────────────────────────────────

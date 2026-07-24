@@ -407,27 +407,26 @@ if st.session_state.get("run_draw"):
     # ── Traça dels vedats: ordre parroquial sortejat i cupos (art. 55.1.b) ──
     traces = resultat.attrs.get("traces_vedats") or {}
     if traces:
-        with st.expander("🎲 Reserva parroquial per tipus i ordre sortejat (vedats)"):
+        with st.expander("🎲 Preferència parroquial (sostre) i ordre sortejat (vedats)"):
+            st.caption(
+                "El cupo per parròquia és un **sostre de preferència**: a igualtat de "
+                "prioritat, els residents passen davant fins a esgotar-lo (art. 55.1)."
+            )
             for zona, t in traces.items():
                 ordre = " · ".join(
                     f"{i+1}r {p}" for i, p in enumerate(t.get("ordre_parroquial", []))
                 )
-                reserva_tipus = t.get("reserva_per_tipus", {})
-                reserva_txt = ", ".join(f"{n} {tp}" for tp, n in reserva_tipus.items())
                 st.markdown(
-                    f"**{zona}** — reservat als censats: {t.get('reserva_total')} captures"
-                    + (f" ({reserva_txt})" if reserva_txt else "")
+                    f"**{zona}** — preferència parroquial: {t.get('reserva_total')} captures (50%)"
                 )
                 st.caption(f"Ordre parroquial sortejat: {ordre}")
-                cupos_per_tipus = t.get("cupos_per_tipus", {})
-                files = [
-                    (tp, p, c)
-                    for tp, cupos in cupos_per_tipus.items()
-                    for p, c in cupos.items()
-                ]
-                if files:
+                cupos = t.get("cupos", {})
+                if cupos:
                     st.table(
-                        pd.DataFrame(files, columns=["Tipus", "Parròquia", "Cupo reservat"])
+                        pd.DataFrame(
+                            [(p, c) for p, c in cupos.items()],
+                            columns=["Parròquia", "Cupo (sostre)"],
+                        )
                     )
 
     st.subheader("Resultats")
