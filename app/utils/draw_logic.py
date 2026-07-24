@@ -88,6 +88,12 @@ def colles_per_sota_minim(df1, df2, zones):
 
 # ── HELPER: APPORTIONMENT (largest remainder) ────────────────────────────────
 
+def _round_meitat(x):
+    """Arrodoniment a l'enter més proper amb els mitjos cap amunt (4,5 → 5).
+    S'usa per al total reservat d'un vedat (art. 55.1.a: «50% com a mínim»)."""
+    return int(math.floor(x + 0.5))
+
+
 def _reparteix_residu_mes_gran(total, pesos):
     """Reparteix `total` captures (enter) entre les claus de `pesos` pel mètode
     del residu més gran. La suma dels resultats és sempre exactament `total`."""
@@ -197,53 +203,92 @@ def sorteig_individual(
         df["Parroquia"] = df["Parroquia"].apply(normalitza_parroquia)
     df["rand"] = rng.random(len(df))
 
-    captures_pool = [t for t, q in tipus_quant for _ in range(q)]
-    total_caps = len(captures_pool)
+    tipus_list = [(t, int(q)) for t, q in tipus_quant if int(q) > 0]
+    total_caps = sum(q for _, q in tipus_list)
     estranger_limit = math.floor(estranger_pct / 100.0 * total_caps)
 
     es_vedat = bool(parroquies_frac) and reserva_frac > 0
-    guanyadors = []
+    assignats = []      # índexs en ordre d'adjudicació
+    tipus_de = {}       # índex -> tipus de captura adjudicat
     traça = None
 
     if es_vedat:
-        bloc = int(round(total_caps * reserva_frac))
+        # Reserva PER TIPUS: el total reservat (50% del total, mitjos amunt) es
+        # reparteix entre els tipus de captura segons les seves quantitats, de
+        # manera que la suma sigui exactament el total i no s'infli arrodonint
+        # cada tipus per separat (art. 55.1.a + 55.1.c).
+        reserva_total = _round_meitat(total_caps * reserva_frac)
+        reserva_tipus = _reparteix_residu_mes_gran(
+            reserva_total, {t: q for t, q in tipus_list}
+        )
         parroquies = [str(p) for p in parroquies_frac.keys()]
         if len(parroquies) > 1:
             ordre_parr = [str(p) for p in rng.permutation(parroquies)]
         else:
             ordre_parr = parroquies
-        disponibles = {p: int((df["Parroquia"] == p).sum()) for p in parroquies}
-        cupos = _cupos_parroquials(bloc, parroquies_frac, disponibles)
-        traça = {"bloc_reservat": bloc, "ordre_parroquial": ordre_parr, "cupos": cupos}
-        # Fase 1 — bloc reservat, només parroquians.
-        guanyadors += _sorteig_reservat(df, cupos, ordre_parr)
-        # Fase 2 — la resta (l'altre 50% + el que el bloc no hagi pogut cobrir
-        # amb parroquians) s'obre a tothom no adjudicatari.
-        restants = total_caps - len(guanyadors)
-        guanyadors += _sorteig_obert(df, guanyadors, restants, estranger_limit)
-    else:
-        guanyadors += _sorteig_obert(df, [], total_caps, estranger_limit)
 
-    # Assignació de tipus als guanyadors, en l'ordre d'adjudicació (que és l'ordre
-    # de prioritat). Si l'ordre de la zona és aleatori, es barreja el pool.
-    if ordre_aleatori:
-        pool_tipus = list(captures_pool)
-        rng.shuffle(pool_tipus)
+        cupos_per_tipus = {}
+        # Fase reservada, tipus a tipus: cada tipus reserva la seva part per als
+        # censats, repartida per superfície entre parròquies (amb redistribució).
+        for t, _q in tipus_list:
+            r_t = reserva_tipus.get(t, 0)
+            if r_t <= 0:
+                continue
+            lliures = df.loc[~df.index.isin(assignats)]
+            resid = lliures[lliures["Parroquia"].isin(parroquies)]
+            disponibles = {p: int((resid["Parroquia"] == p).sum()) for p in parroquies}
+            cupos = _cupos_parroquials(r_t, parroquies_frac, disponibles)
+            cupos_per_tipus[t] = cupos
+            for idx in _sorteig_reservat(lliures, cupos, ordre_parr):
+                assignats.append(idx)
+                tipus_de[idx] = t
+
+        # Fase oberta, tipus a tipus: la resta de cada tipus (l'altre 50% + el
+        # que el bloc reservat no hagi pogut cobrir amb censats) s'obre a tothom.
+        estr = 0
+        for t, q in tipus_list:
+            fets = sum(1 for i in assignats if tipus_de[i] == t)
+            rest = q - fets
+            if rest <= 0:
+                continue
+            for idx in _sorteig_obert(df, assignats, rest, estranger_limit, estr):
+                assignats.append(idx)
+                tipus_de[idx] = t
+                if df.at[idx, "Estranger"] == "si":
+                    estr += 1
+
+        traça = {
+            "reserva_total": reserva_total,
+            "ordre_parroquial": ordre_parr,
+            "reserva_per_tipus": reserva_tipus,
+            "cupos_per_tipus": cupos_per_tipus,
+        }
     else:
-        pool_tipus = captures_pool
+        # TCC / individual: un sol sorteig obert per prioritat; els tipus
+        # s'assignen als guanyadors en ordre (o barrejats si «Ordre aleatori»).
+        guanyadors = _sorteig_obert(df, [], total_caps, estranger_limit)
+        pool_tipus = [t for t, q in tipus_list for _ in range(q)]
+        if ordre_aleatori:
+            pool_tipus = list(pool_tipus)
+            rng.shuffle(pool_tipus)
+        for pos, idx in enumerate(guanyadors):
+            assignats.append(idx)
+            if pos < len(pool_tipus):
+                tipus_de[idx] = pool_tipus[pos]
 
     df["ordre"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="Int64")
     df["tipus"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="object")
-    for pos, idx in enumerate(guanyadors):
+    for pos, idx in enumerate(assignats):
         df.at[idx, "ordre"] = pos + 1
-        df.at[idx, "tipus"] = pool_tipus[pos] if pos < len(pool_tipus) else pd.NA
+        if idx in tipus_de:
+            df.at[idx, "tipus"] = tipus_de[idx]
 
     cols = ["ID", "ordre", "tipus", "Estranger"]
     if "Parroquia" in df.columns:
         cols.append("Parroquia")
     out = df[cols].copy()
     out["ordre"] = out["ordre"].astype("Int64")
-    out.attrs["traça"] = traça  # ordre parroquial sortejat + cupos (auditabilitat)
+    out.attrs["traça"] = traça  # reserva per tipus, ordre parroquial i cupos
     return out
 
 

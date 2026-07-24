@@ -142,7 +142,42 @@ def test_vedat_bloc_no_cobert_passa_al_general():
     assert len(adj) == 8  # totes les captures s'adjudiquen
     locals_ = adj[adj["Parroquia"] == "La Massana"]
     assert len(locals_) == 2  # només els 2 censats que existeixen
-    assert out.attrs["traça"]["cupos"] == {"La Massana": 2}
+    assert out.attrs["traça"]["cupos_per_tipus"]["Indeterminat"] == {"La Massana": 2}
+
+
+def test_reserva_per_tipus():
+    """El 50% reservat es reparteix per tipus de captura, sense inflar per
+    arrodoniment: 2 trofeus + 10 selectius -> reserva 6 = 1 trofeu + 5 selectius;
+    3+3+3 -> reserva 5 = 2+2+1 (no 6)."""
+    import numpy as np
+    # Censats amb prioritat 2 i no residents amb prioritat 1 (millor): així els no
+    # residents s'enduen tota la fase oberta i els censats es queden EXACTAMENT
+    # amb la reserva, cosa que permet comprovar-la aïllada.
+    rows = [
+        {"ID": 100 + i, "Prioritat": 2, "anys_sense_captura": 0,
+         "Estranger": "no", "Parroquia": "La Massana"} for i in range(40)
+    ] + [
+        {"ID": 200 + i, "Prioritat": 1, "anys_sense_captura": 0,
+         "Estranger": "no", "Parroquia": "Encamp"} for i in range(40)
+    ]
+    df = pd.DataFrame(rows)
+
+    out = d.sorteig_individual(
+        df, [("Trofeu", 2), ("Selectiu", 10)], True, {"La Massana": 1.0}, 0.5, 10.0,
+        np.random.RandomState(1),
+    )
+    assert out.attrs["traça"]["reserva_total"] == 6
+    assert out.attrs["traça"]["reserva_per_tipus"] == {"Trofeu": 1, "Selectiu": 5}
+    resid = out[out["ordre"].notna() & (out["Parroquia"] == "La Massana")]
+    assert (resid["tipus"] == "Trofeu").sum() == 1
+    assert (resid["tipus"] == "Selectiu").sum() == 5
+
+    out2 = d.sorteig_individual(
+        df, [("A", 3), ("B", 3), ("C", 3)], True, {"La Massana": 1.0}, 0.5, 10.0,
+        np.random.RandomState(2),
+    )
+    assert out2.attrs["traça"]["reserva_total"] == 5  # 4,5 -> 5, no 6
+    assert out2.attrs["traça"]["reserva_per_tipus"] == {"A": 2, "B": 2, "C": 1}
 
 
 def test_vedat_bloc_reservat_nomes_parroquians():
