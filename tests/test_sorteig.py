@@ -66,6 +66,40 @@ def test_cupo_parroquial_per_superficie():
     assert d._reparteix_residu_mes_gran(24, fr) == {"ALV": 12, "SJ": 6, "LM": 6, "EE": 0}
 
 
+def test_cupo_empat_el_desfa_ordre_sortejat():
+    """Amb dues parròquies al 50% i un cupo senar, la captura sobrera va a la
+    parròquia que ha sortit PRIMERA al sorteig (art. 55.1.b), no a la primera de
+    la configuració."""
+    fr = {"Canillo": 0.5, "Ordino": 0.5}
+    assert d._reparteix_residu_mes_gran(5, fr, ["Ordino", "Canillo"]) == {
+        "Canillo": 2, "Ordino": 3,
+    }
+    assert d._reparteix_residu_mes_gran(5, fr, ["Canillo", "Ordino"]) == {
+        "Canillo": 3, "Ordino": 2,
+    }
+
+
+def test_cupo_es_presenta_en_l_ordre_sortejat():
+    """La traça retorna els cupos en el mateix ordre que l'ordre parroquial
+    sortejat, perquè la taula de resultats no contradigui el text que la precedeix."""
+    import numpy as np
+    rows = [
+        {"ID": 100 + i, "Prioritat": 4, "anys_sense_captura": 0,
+         "Estranger": "no", "Parroquia": p}
+        for p in ["Canillo", "Ordino", "Encamp"] for i in range(10)
+    ]
+    for seed in range(6):
+        out = d.sorteig_individual(
+            pd.DataFrame(rows), [("Indeterminat", 10)], True,
+            {"Canillo": 0.5, "Ordino": 0.5}, 0.5, 10.0, np.random.RandomState(seed),
+        )
+        t = out.attrs["traça"]
+        assert list(t["cupos"]) == t["ordre_parroquial"]
+        # I la primera sortejada es queda la captura sobrera del cupo senar (5).
+        assert t["cupos"][t["ordre_parroquial"][0]] == 3
+        assert t["cupos"][t["ordre_parroquial"][1]] == 2
+
+
 def test_round_meitat():
     assert d._round_meitat(24.0) == 24
     assert d._round_meitat(4.5) == 5   # 50% de 9, mitjos amunt
@@ -167,6 +201,80 @@ def test_vedat_preferencia_com_a_sostre():
     assert (v.tail(4)["Parroquia"] == "Encamp").all()       # passat el sostre, no residents
     resid = out[out["ordre"].notna() & (out["Parroquia"] == "La Massana")]
     assert len(resid) == 4  # exactament el cupo, ni més (no arriben per anys)
+
+
+def test_substituts_mantenen_preferencia_fins_al_sostre():
+    """L'ordre de substitució (art. 55.1.f) segueix els mateixos criteris: si el
+    sostre parroquial no s'ha esgotat amb les captures, els residents continuen
+    passant davant a igualtat de prioritat fins a completar-lo."""
+    import numpy as np
+    # 4 captures, cupo La Massana = 2. Les 4 captures se les enduen no residents
+    # de prioritat 2 (la prioritat mana), de manera que el sostre resident queda
+    # intacte. Entre la resta, tots de prioritat 4, els residents han de passar
+    # davant fins a completar el cupo malgrat tenir pitjor desempat per anys.
+    rows = [
+        {"ID": 10 + i, "Prioritat": 2, "anys_sense_captura": 0,
+         "Estranger": "no", "Parroquia": "Encamp"} for i in range(4)
+    ] + [
+        {"ID": 100 + i, "Prioritat": 4, "anys_sense_captura": 0,
+         "Estranger": "no", "Parroquia": "La Massana"} for i in range(10)
+    ] + [
+        {"ID": 200 + i, "Prioritat": 4, "anys_sense_captura": 5,
+         "Estranger": "no", "Parroquia": "Encamp"} for i in range(10)
+    ]
+    out = d.sorteig_individual(
+        pd.DataFrame(rows), [("Indeterminat", 4)], True, {"La Massana": 1.0},
+        0.5, 10.0, np.random.RandomState(3),
+    )
+    assert out.attrs["traça"]["cupos"] == {"La Massana": 2}
+    guanyadors = out[out["ordre"].notna()]
+    assert (guanyadors["Parroquia"] == "Encamp").all()   # la prioritat mana
+    subs = out[out["substitut"].notna()].sort_values("substitut")
+    assert list(subs.head(2)["Parroquia"]) == ["La Massana"] * 2  # sostre pendent
+    # Completat el sostre, els residents perden la preferència i el desempat per
+    # anys sense captura torna a posar els d'Encamp al davant.
+    assert list(subs["Parroquia"])[2:12] == ["Encamp"] * 10
+    # Tothom qui no ha guanyat té ordre de substitució, sense forats.
+    assert list(subs["substitut"]) == list(range(1, len(subs) + 1))
+    assert len(guanyadors) + len(subs) == 24
+
+
+def test_substituts_del_vedat_a_les_proves():
+    """Sobre les dades reals: cap vedat deixa un substitut no resident per davant
+    d'un resident de la mateixa prioritat amb sostre parroquial pendent."""
+    r, _ = _run_isard()
+    zones_ordre = ["IS TCC", "IS VCRS", "IS VCX", "IS VCE"]
+    guanyades = {id_: 0 for id_ in r["ID"]}  # captures ja obtingudes en zones anteriors
+    for zona in zones_ordre:
+        col = zona.replace(" ", "_")
+        adj = pd.to_numeric(r[col], errors="coerce")
+        if zona in r.attrs["traces_vedats"]:
+            t = r.attrs["traces_vedats"][zona]
+            cupos = dict(t["cupos"])
+            rang = {p: i for i, p in enumerate(t["ordre_parroquial"])}
+            v = r[r[col].notna()].copy()
+            v["parr"] = v["Parroquia"].apply(d.normalitza_parroquia)
+            # Prioritat efectiva: 5+n-1 per a qui ja ha guanyat en zones anteriors.
+            v["prio"] = [
+                (5 + guanyades[i] - 1) if guanyades[i] > 0 else p
+                for i, p in zip(v["ID"], v["Prioritat"])
+            ]
+            v["adj"] = pd.to_numeric(v[col], errors="coerce")
+            subs = v[v["adj"].isna()].copy()
+            subs["n"] = subs[col].astype(str).str[1:].astype(int)
+            comptador = v[v["adj"].notna()]["parr"].value_counts().to_dict()
+            vist = None
+            for _, row in subs.sort_values("n").iterrows():
+                p = row["parr"]
+                te_preferencia = comptador.get(p, 0) < cupos.get(p, 0)
+                clau = (row["prio"], 0 if te_preferencia else 1,
+                        rang.get(p, len(rang)) if te_preferencia else len(rang))
+                if vist is not None:
+                    assert clau >= vist, f"{zona}: substitut s{row['n']} trenca l'ordre"
+                vist = clau
+                comptador[p] = comptador.get(p, 0) + 1
+        for id_ in r.loc[adj.notna(), "ID"]:
+            guanyades[id_] += 1
 
 
 def test_vedat_prioritat_monotona_a_les_proves():

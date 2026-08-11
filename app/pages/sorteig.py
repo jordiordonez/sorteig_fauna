@@ -422,11 +422,14 @@ if st.session_state.get("run_draw"):
                 st.caption(f"Ordre parroquial sortejat: {ordre}")
                 cupos = t.get("cupos", {})
                 if cupos:
+                    # Mateix ordre que el sorteig parroquial (art. 55.1.b).
+                    ordenades = [p for p in t.get("ordre_parroquial", []) if p in cupos]
+                    ordenades += [p for p in cupos if p not in ordenades]
                     st.table(
                         pd.DataFrame(
-                            [(p, c) for p, c in cupos.items()],
-                            columns=["Parròquia", "Cupo (sostre)"],
-                        )
+                            [(f"{i+1}r", p, cupos[p]) for i, p in enumerate(ordenades)],
+                            columns=["Ordre", "Parròquia", "Cupo (sostre)"],
+                        ).set_index("Ordre")
                     )
 
     st.subheader("Resultats")

@@ -94,18 +94,30 @@ def _round_meitat(x):
     return int(math.floor(x + 0.5))
 
 
-def _reparteix_residu_mes_gran(total, pesos):
+def _reparteix_residu_mes_gran(total, pesos, ordre=None):
     """Reparteix `total` captures (enter) entre les claus de `pesos` pel mètode
-    del residu més gran. La suma dels resultats és sempre exactament `total`."""
+    del residu més gran. La suma dels resultats és sempre exactament `total`.
+
+    `ordre` és la llista de parròquies en l'ordre sortejat (art. 55.1.b) i desfà
+    els empats de residu: p. ex. amb 5 captures repartides al 50%/50%, la
+    captura sobrera va a la parròquia que ha sortit primera, no a la que consta
+    primera a la configuració.
+    """
     suma = sum(pesos.values())
     if total <= 0 or suma <= 0:
         return {k: 0 for k in pesos}
+    rang = {k: i for i, k in enumerate(ordre or [])}
+    darrer = len(rang)
     exacte = {k: total * p / suma for k, p in pesos.items()}
     quota = {k: int(math.floor(v)) for k, v in exacte.items()}
     falten = total - sum(quota.values())
     if falten > 0:
         ordenat = sorted(
-            exacte, key=lambda k: exacte[k] - math.floor(exacte[k]), reverse=True
+            exacte,
+            key=lambda k: (
+                -(exacte[k] - math.floor(exacte[k])),
+                rang.get(k, darrer),
+            ),
         )
         for k in ordenat[:falten]:
             quota[k] += 1
@@ -183,33 +195,60 @@ def sorteig_individual(
 
     es_vedat = bool(parroquies_frac) and reserva_frac > 0
     if es_vedat:
-        # Cupo parroquial ENTER (sostre de preferència), pel residu més gran sobre
-        # el 50% del total (mitjos amunt): p. ex. 24 -> ALV 12, SJL 6, LM 6, EE 0.
-        reserva_total = _round_meitat(total_caps * reserva_frac)
-        cupos = _reparteix_residu_mes_gran(reserva_total, parroquies_frac)
+        # Primer, l'ordre parroquial sortejat (art. 55.1.b): mana tant en el
+        # desempat del repartiment com en l'ordre d'adjudicació.
         parroquies = [str(p) for p in parroquies_frac.keys()]
         ordre_parr = (
             [str(p) for p in rng.permutation(parroquies)]
             if len(parroquies) > 1 else parroquies
         )
         parr_rank = {p: i for i, p in enumerate(ordre_parr)}
+        # Cupo parroquial ENTER (sostre de preferència), pel residu més gran sobre
+        # el 50% del total (mitjos amunt): p. ex. 24 -> ALV 12, SJL 6, LM 6, EE 0.
+        reserva_total = _round_meitat(total_caps * reserva_frac)
+        cupos = _reparteix_residu_mes_gran(reserva_total, parroquies_frac, ordre_parr)
+        cupos = {p: cupos[p] for p in ordre_parr}  # presentat en l'ordre sortejat
         traça = {"reserva_total": reserva_total, "ordre_parroquial": ordre_parr, "cupos": cupos}
     else:
         cupos, parr_rank, traça = {}, {}, None
 
+    # Una sola passada per a les captures i, tot seguit, per a l'ordre de
+    # substitució (art. 55.1.f): els mateixos criteris jeràrquics segueixen
+    # vigents mentre el sostre parroquial no s'hagi esgotat, perquè un substitut
+    # que entra ocupa una captura del vedat. El sostre d'estrangers, en canvi,
+    # només limita les captures adjudicades.
     assignats_parr = {p: 0 for p in cupos}
     guanyadors = []
+    substituts = []
     estrangers = 0
-    while len(guanyadors) < total_caps:
+    fase_captures = total_caps > 0
+    while True:
         idx = tria_candidat(
-            df, assignats_parr, cupos, parr_rank, estrangers, estranger_limit, rng
+            df,
+            assignats_parr,
+            cupos,
+            parr_rank,
+            estrangers,
+            estranger_limit if fase_captures else math.inf,
+            rng,
         )
         if idx is None:
+            if fase_captures:
+                # Sense candidats elegibles per a les captures (p. ex. només
+                # queden estrangers i el sostre és ple): passem a la substitució,
+                # que no en depèn.
+                fase_captures = False
+                continue
             break
         df.at[idx, "assigned"] = True
-        guanyadors.append(idx)
-        if df.at[idx, "Estranger"] == "si":
-            estrangers += 1
+        if fase_captures:
+            guanyadors.append(idx)
+            if df.at[idx, "Estranger"] == "si":
+                estrangers += 1
+            if len(guanyadors) >= total_caps:
+                fase_captures = False
+        else:
+            substituts.append(idx)
         p = df.at[idx, "Parroquia"] if "Parroquia" in df.columns else None
         if p in assignats_parr:
             assignats_parr[p] += 1
@@ -224,16 +263,20 @@ def sorteig_individual(
 
     df["ordre"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="Int64")
     df["tipus"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="object")
+    df["substitut"] = pd.Series([pd.NA] * len(df), index=df.index, dtype="Int64")
     for pos, idx in enumerate(guanyadors):
         df.at[idx, "ordre"] = pos + 1
         if pos < len(pool_tipus):
             df.at[idx, "tipus"] = pool_tipus[pos]
+    for pos, idx in enumerate(substituts):
+        df.at[idx, "substitut"] = pos + 1
 
-    cols = ["ID", "ordre", "tipus", "Estranger"]
+    cols = ["ID", "ordre", "tipus", "substitut", "Estranger"]
     if "Parroquia" in df.columns:
         cols.append("Parroquia")
     out = df[cols].copy()
     out["ordre"] = out["ordre"].astype("Int64")
+    out["substitut"] = out["substitut"].astype("Int64")
     out.attrs["traça"] = traça  # cupo parroquial (sostre) i ordre sortejat
     return out
 
@@ -316,6 +359,7 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
             part = part[part["Modalitat"].isin(["A", "B"])].copy()
         subset_ids = set(part["ID"])
 
+        ordre_substitucio = None  # el fixa el sorteig de vedat/individual
         if is_modalitat:
             asignats = assignar_isards_sorteig_csv(
                 part,
@@ -347,6 +391,12 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
             traça_zona = asignats.attrs.get("traça")
             if traça_zona:
                 traces_vedats[sorteig] = traça_zona
+            ordre_substitucio = (
+                asignats.loc[asignats["substitut"].notna(), ["ID", "substitut"]]
+                .sort_values("substitut")["ID"]
+                .tolist()
+            )
+            asignats = asignats.drop(columns=["substitut"])
 
         asignats = asignats.rename(
             columns={"ordre": f"ordre_{col_base}", "tipus": f"tipus_{col_base}"}
@@ -363,19 +413,26 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
             # Convert column to object dtype to allow mixed types (numbers and strings)
             resultat[col_base] = resultat[col_base].astype('object')
             
-            pending_ids = resultat.loc[mask_no_cap, "ID"]
-            tmp = part[part["ID"].isin(pending_ids)].copy()
-            tmp["rand"] = rng.random(len(tmp))
-            tmp.sort_values(
-                ["Prioritat", "anys_sense_captura", "rand"],
-                ascending=[True, False, True],
-                inplace=True,
-            )
-            labels = [f"s{i+1}" for i in range(len(tmp))]
-            
+            pending_ids = set(resultat.loc[mask_no_cap, "ID"])
+            if ordre_substitucio is not None:
+                # Ordre de substitució ja sortejat amb els criteris de l'art. 55.1
+                # (prioritat i, si el sostre no s'ha esgotat, preferència parroquial).
+                ids_ordenats = [i for i in ordre_substitucio if i in pending_ids]
+                vistos = set(ids_ordenats)
+                ids_ordenats += [i for i in pending_ids if i not in vistos]
+            else:
+                tmp = part[part["ID"].isin(pending_ids)].copy()
+                tmp["rand"] = rng.random(len(tmp))
+                tmp.sort_values(
+                    ["Prioritat", "anys_sense_captura", "rand"],
+                    ascending=[True, False, True],
+                    inplace=True,
+                )
+                ids_ordenats = tmp["ID"].tolist()
+
             # Assign substitute labels one by one to avoid dtype conflicts
-            for i, id_val in enumerate(tmp["ID"]):
-                resultat.loc[resultat["ID"] == id_val, col_base] = labels[i]
+            for i, id_val in enumerate(ids_ordenats):
+                resultat.loc[resultat["ID"] == id_val, col_base] = f"s{i+1}"
         resultat[f"Tipus_{col_base}"] = resultat[f"tipus_{col_base}"]
 
         winners = asignats.loc[asignats[f"ordre_{col_base}"].notna(), "ID"]
