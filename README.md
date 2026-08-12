@@ -2,11 +2,14 @@
 
 This repository contains a [Streamlit](https://streamlit.io) application used to manage wildlife draw lotteries for species such as *Isard*, *Cabirol* and *Mufló*.  The app lets you **configure the draw zones**, upload participant CSV files and inspect the results through a dashboard.
 
+> 📘 **[Manual del sorteig (`manual.md`)](manual.md)** — the reference document, in Catalan: how every case is decided, article by article, with diagrams, worked examples and edge cases. Read that one if what you need is *the rules*; this README covers *the repository*.
+
 ## Repository structure
 
 - `app/` – Streamlit application modules. `Home.py` selects between the draw and dashboard pages found under `app/pages/`; shared logic lives in `app/utils/`.
   - `app/utils/config.py` – the editable catalogue of species and zones (data model + preloaded defaults).
   - `app/utils/draw_logic.py` – the draw engine.
+- `manual.md` – **the draw rules**, in Catalan: every casuistry with its article, diagrams and edge cases.
 - `tests/test_sorteig.py` – test suite for the draw engine (run with `python tests/test_sorteig.py` or `pytest`). Tests that need real data skip automatically when it is absent.
 - `run_app.py` – Entry point used when running locally or when packaging with PyInstaller.
 - `altres.csv`, `isard.csv`, `sorteig.csv` – Example CSV files used as templates or sample data.
