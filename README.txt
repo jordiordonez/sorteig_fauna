@@ -51,6 +51,7 @@ To make sure the app works correctly, copy these files into the `dist` folder:
     - isard.csv
     - altres.csv
     - sorteig.csv
+    - manual.html   <-- required: the in-app manual page reads this file
     - (Any other static resources your app needs)
 
 ---

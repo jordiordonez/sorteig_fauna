@@ -415,11 +415,11 @@ flowchart LR
     A["Captura 1"] --> B["Captura 2"] --> C["…"] --> D["Última captura"]
     D --> E["s1"] --> F["s2"] --> G["…"]
 
-    style A fill:#2d6a4f,color:#fff
-    style B fill:#2d6a4f,color:#fff
-    style D fill:#2d6a4f,color:#fff
-    style E fill:#1b4965,color:#fff
-    style F fill:#1b4965,color:#fff
+    style A fill:#1D5C4F,color:#fff,stroke:#1D5C4F
+    style B fill:#1D5C4F,color:#fff,stroke:#1D5C4F
+    style D fill:#1D5C4F,color:#fff,stroke:#1D5C4F
+    style E fill:#43607A,color:#fff,stroke:#43607A
+    style F fill:#43607A,color:#fff,stroke:#43607A
 ```
 
 Això vol dir, en un vedat:

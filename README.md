@@ -10,6 +10,7 @@ This repository contains a [Streamlit](https://streamlit.io) application used to
   - `app/utils/config.py` – the editable catalogue of species and zones (data model + preloaded defaults).
   - `app/utils/draw_logic.py` – the draw engine.
 - `manual.md` – **the draw rules**, in Catalan: every casuistry with its article, diagrams and edge cases.
+- `manual.html` – the same manual as a self-contained page (diagrams inlined, no external assets), served by the app's *Manual* tab and readable offline. Regenerate with `python tools/build_manual.py` after editing `manual.md`; it needs `mistune`, `beautifulsoup4` and `npx @mermaid-js/mermaid-cli`.
 - `tests/test_sorteig.py` – test suite for the draw engine (run with `python tests/test_sorteig.py` or `pytest`). Tests that need real data skip automatically when it is absent.
 - `run_app.py` – Entry point used when running locally or when packaging with PyInstaller.
 - `altres.csv`, `isard.csv`, `sorteig.csv` – Example CSV files used as templates or sample data.

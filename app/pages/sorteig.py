@@ -250,6 +250,12 @@ with st.expander("Format dels CSV"):
         """
     )
 
+st.page_link(
+    "pages/manual.py",
+    label="**Manual del sorteig** — com es decideix cada cas, article per article",
+    icon="📘",
+)
+
 st.markdown("💡 Pots descarregar exemples de fitxers aquí:")
 ex1, ex2, ex3 = st.columns(3)
 with open("isard.csv", "rb") as f1:
