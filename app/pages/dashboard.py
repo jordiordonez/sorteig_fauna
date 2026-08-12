@@ -355,11 +355,7 @@ def plot_drill(
 
 
 def main():
-    st.set_page_config(
-        page_title="📊 Resultats sorteig",
-        layout="wide",
-        menu_items={"Get Help": None, "Report a bug": None, "About": None},
-    )
+    # La configuració de la pàgina es fa una sola vegada, a `Home.py`.
     st.markdown(
         "<style>body{color:black;}</style>",
         unsafe_allow_html=True,
