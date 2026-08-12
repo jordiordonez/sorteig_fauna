@@ -4,6 +4,12 @@ import streamlit as st
 import unicodedata
 
 
+# Etiqueta dels sol·licitants estrangers no residents que queden fora del sorteig
+# de substitució perquè el sostre del 10% (art. 53.4) ja s'ha exhaurit. No és el
+# mateix que una cel·la buida, que vol dir «no inscrit a la zona».
+ETIQUETA_EXCLOS = "exclòs (sostre 10%)"
+
+
 # ── UTILITIES ────────────────────────────────────────────────────────────────
 
 def strip_accents(text: str) -> str:
@@ -215,8 +221,10 @@ def sorteig_individual(
     # Una sola passada per a les captures i, tot seguit, per a l'ordre de
     # substitució (art. 55.1.f): els mateixos criteris jeràrquics segueixen
     # vigents mentre el sostre parroquial no s'hagi esgotat, perquè un substitut
-    # que entra ocupa una captura del vedat. El sostre d'estrangers, en canvi,
-    # només limita les captures adjudicades.
+    # que entra ocupa una captura del vedat. El sostre d'estrangers (art. 53.4)
+    # compta igual les captures i les substitucions: un cop exhaurit, els
+    # estrangers no residents queden fora del sorteig i no reben ordre de
+    # substitució (la llicència es considera adjudicada, hi accedeixin o no).
     assignats_parr = {p: 0 for p in cupos}
     guanyadors = []
     substituts = []
@@ -224,31 +232,19 @@ def sorteig_individual(
     fase_captures = total_caps > 0
     while True:
         idx = tria_candidat(
-            df,
-            assignats_parr,
-            cupos,
-            parr_rank,
-            estrangers,
-            estranger_limit if fase_captures else math.inf,
-            rng,
+            df, assignats_parr, cupos, parr_rank, estrangers, estranger_limit, rng
         )
         if idx is None:
-            if fase_captures:
-                # Sense candidats elegibles per a les captures (p. ex. només
-                # queden estrangers i el sostre és ple): passem a la substitució,
-                # que no en depèn.
-                fase_captures = False
-                continue
             break
         df.at[idx, "assigned"] = True
         if fase_captures:
             guanyadors.append(idx)
-            if df.at[idx, "Estranger"] == "si":
-                estrangers += 1
             if len(guanyadors) >= total_caps:
                 fase_captures = False
         else:
             substituts.append(idx)
+        if df.at[idx, "Estranger"] == "si":
+            estrangers += 1
         p = df.at[idx, "Parroquia"] if "Parroquia" in df.columns else None
         if p in assignats_parr:
             assignats_parr[p] += 1
@@ -416,11 +412,11 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
             pending_ids = set(resultat.loc[mask_no_cap, "ID"])
             if ordre_substitucio is not None:
                 # Ordre de substitució ja sortejat amb els criteris de l'art. 55.1
-                # (prioritat i, si el sostre no s'ha esgotat, preferència parroquial).
+                # (prioritat i, si el sostre no s'ha esgotat, preferència parroquial),
+                # ja amb el sostre d'estrangers aplicat.
                 ids_ordenats = [i for i in ordre_substitucio if i in pending_ids]
-                vistos = set(ids_ordenats)
-                ids_ordenats += [i for i in pending_ids if i not in vistos]
             else:
+                # IS TCC: ordre per prioritat, amb el mateix sostre d'estrangers.
                 tmp = part[part["ID"].isin(pending_ids)].copy()
                 tmp["rand"] = rng.random(len(tmp))
                 tmp.sort_values(
@@ -428,11 +424,25 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
                     ascending=[True, False, True],
                     inplace=True,
                 )
-                ids_ordenats = tmp["ID"].tolist()
+                limit_estr = math.floor(estranger_pct / 100.0 * total_quant)
+                estr_acum = int(estr)
+                ids_ordenats = []
+                for id_val, es_estranger in zip(
+                    tmp["ID"], tmp["Estranger"].apply(normalitza_estranger) == "si"
+                ):
+                    if es_estranger:
+                        if estr_acum >= limit_estr:
+                            continue  # fora del sorteig: sostre exhaurit
+                        estr_acum += 1
+                    ids_ordenats.append(id_val)
 
             # Assign substitute labels one by one to avoid dtype conflicts
             for i, id_val in enumerate(ids_ordenats):
                 resultat.loc[resultat["ID"] == id_val, col_base] = f"s{i+1}"
+            # Els inscrits sense captura ni ordre de substitució són els estrangers
+            # descartats pel sostre; es marquen per no confondre'ls amb «no inscrit».
+            for id_val in pending_ids - set(ids_ordenats):
+                resultat.loc[resultat["ID"] == id_val, col_base] = ETIQUETA_EXCLOS
         resultat[f"Tipus_{col_base}"] = resultat[f"tipus_{col_base}"]
 
         winners = asignats.loc[asignats[f"ordre_{col_base}"].notna(), "ID"]

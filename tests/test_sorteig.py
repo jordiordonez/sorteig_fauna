@@ -260,7 +260,7 @@ def test_substituts_del_vedat_a_les_proves():
                 for i, p in zip(v["ID"], v["Prioritat"])
             ]
             v["adj"] = pd.to_numeric(v[col], errors="coerce")
-            subs = v[v["adj"].isna()].copy()
+            subs = v[v[col].astype(str).str.fullmatch(r"s\d+")].copy()
             subs["n"] = subs[col].astype(str).str[1:].astype(int)
             comptador = v[v["adj"].notna()]["parr"].value_counts().to_dict()
             vist = None
@@ -311,6 +311,58 @@ def test_sostre_estrangers_per_zona():
         v = r[pd.to_numeric(r[col], errors="coerce").notna()]
         estr = v["Estranger"].astype(str).str.upper().isin(["SI", "SÍ"]).sum()
         assert estr <= math.floor(0.10 * caps)
+
+
+def test_sostre_estrangers_tanca_la_substitucio():
+    """El sostre del 10% (art. 53.4) compta captures I substitucions: un cop
+    exhaurit, els estrangers no residents queden fora del sorteig de substitució
+    i no reben cap ordre (la llicència es considera adjudicada hi accedeixin o no)."""
+    import numpy as np
+    # 10 captures -> sostre = 1 estranger. Els estrangers tenen la millor prioritat,
+    # o sigui que el sostre es consumeix ja amb les captures.
+    rows = [
+        {"ID": 100 + i, "Prioritat": 2, "anys_sense_captura": 0, "Estranger": "SI",
+         "Parroquia": "La Massana"} for i in range(5)
+    ] + [
+        {"ID": 200 + i, "Prioritat": 3, "anys_sense_captura": 0, "Estranger": "NO",
+         "Parroquia": "La Massana"} for i in range(20)
+    ]
+    out = d.sorteig_individual(
+        pd.DataFrame(rows), [("Indeterminat", 10)], True, {"La Massana": 1.0},
+        0.5, 10.0, np.random.RandomState(5),
+    )
+    adj = out[out["ordre"].notna()]
+    assert len(adj) == 10
+    assert (adj["Estranger"] == "si").sum() == 1        # sostre = floor(0.10*10)
+    subs = out[out["substitut"].notna()]
+    assert (subs["Estranger"] == "si").sum() == 0       # cap estranger substitut
+    # Els 4 estrangers restants no tenen ni captura ni ordre de substitució.
+    fora = out[out["ordre"].isna() & out["substitut"].isna()]
+    assert len(fora) == 4 and (fora["Estranger"] == "si").all()
+
+
+def test_estrangers_exclosos_es_marquen_al_resultat():
+    """Als resultats, l'estranger descartat pel sostre porta etiqueta pròpia: una
+    cel·la buida voldria dir «no inscrit a la zona»."""
+    p, ins, zones = _isard()
+    r, _ = d.processar_sorteigs(p.copy(), ins.copy(), copy.deepcopy(zones), "Isard", seed=42)
+    trobats = 0
+    for zona, caps in CAPS_IS.items():
+        col = zona.replace(" ", "_")
+        marcats = r[r[col].astype(str) == d.ETIQUETA_EXCLOS]
+        # Qui porta l'etiqueta ha de ser estranger, i mai un adjudicatari.
+        assert marcats["Estranger"].astype(str).str.upper().isin(["SI", "SÍ"]).all()
+        trobats += len(marcats)
+        # El sostre segueix complint-se entre els adjudicataris.
+        adj = r[pd.to_numeric(r[col], errors="coerce").notna()]
+        estr = adj["Estranger"].astype(str).str.upper().isin(["SI", "SÍ"]).sum()
+        assert estr <= math.floor(0.10 * caps)
+    assert trobats > 0, "les dades de prova no exerciten el sostre d'estrangers"
+    # I no compten com a captura de cara a l'any vinent.
+    marcats = r[r["IS_VCE"].astype(str) == d.ETIQUETA_EXCLOS]
+    if len(marcats):
+        assert (marcats["Nova_prioritat"] == 2).all()
+        assert (marcats["Nou_Anys_sense_captura"] == marcats["anys_sense_captura"] + 1).all()
 
 
 def test_sostre_zero_no_penja():
