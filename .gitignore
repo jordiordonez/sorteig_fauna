@@ -12,3 +12,11 @@ correu_resposta_hector.md
 
 # Adjunts de correu amb dades reals — no es publiquen
 correu/
+
+# Informes i lliurables amb dades de client, tarifes i imports — NO es publiquen
+INF-*.docx
+INF-*.pdf
+tools/actualitza_informe.py
+
+# Esborranys de correu (qualsevol data) — no es publiquen
+correu_*.md
