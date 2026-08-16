@@ -119,6 +119,27 @@ def neteja_svg(svg, ident):
     return svg.strip()
 
 
+def pre_renderitza_crides(md_text, converteix):
+    """Converteix a HTML els blockquotes que contenen una taula.
+
+    mistune no analitza taules dins d'un blockquote (GitHub sí), i la taula
+    acabava sortint com a text amb els pipes a la vista. Aquí se'n treu el
+    prefix «> », es converteix el contingut com un document a part i es
+    reinsereix com a bloc HTML, que mistune deixa passar tal qual.
+    """
+    def bloc(m):
+        cru = m.group(0)
+        contingut = "\n".join(re.sub(r"^> ?", "", l) for l in cru.splitlines())
+        if not re.search(r"^\s*\|?\s*:?-{2,}", contingut, re.M):
+            return cru
+        # Sense línies en blanc: una línia buida tancaria el bloc HTML abans
+        # d'hora i la resta tornaria a passar per l'analitzador de markdown.
+        html = re.sub(r"\n\s*\n", "\n", converteix(contingut).strip())
+        return "\n<blockquote>\n" + html + "\n</blockquote>\n\n"
+
+    return re.sub(r"(?:^>.*(?:\n|$))+", bloc, md_text, flags=re.M)
+
+
 def amplada_natural(svg):
     """Amplada en píxels que demana l'SVG, llegida del seu viewBox."""
     vb = (svg.get("viewbox") or svg.get("viewBox") or "").split()
@@ -432,10 +453,20 @@ pre code {{ background:none; padding:0; font-size:1em; }}
   body {{ font-size:16px; }}
 }}
 @media print {{
+  /* Sense això el navegador no imprimeix els fons: les capçaleres de taula i
+     les crides sortirien en blanc i es perdria la distinció visual. */
+  *,*::before,*::after {{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }}
   .lateral,.tema {{ display:none; }}
   .pagina {{ display:block; }}
+  .doc {{ padding:0; }}
+  .llenc {{ max-width:none; }}
   .diagrama {{ break-inside:avoid; box-shadow:none; }}
-  h2 {{ break-after:avoid; }}
+  .crida,.taula {{ break-inside:avoid; }}
+  h2,h3 {{ break-after:avoid; }}
+  h2 .citacio,h3 .citacio {{ position:static; width:auto; text-align:left;
+    margin:.3rem 0 0; }}
+  .masta {{ padding-top:0; }}
+  a {{ text-decoration:none; }}
 }}
 </style>
 </head>
@@ -519,7 +550,13 @@ def main():
 
     diagrames = renderitza_diagrames(blocs)
 
-    cos = mistune.create_markdown(plugins=["table", "strikethrough"])(md)
+    # escape=False: el manual és contingut propi i cal que hi passin els blocs
+    # HTML que genera `pre_renderitza_crides`.
+    converteix = mistune.create_markdown(
+        escape=False, plugins=["table", "strikethrough"]
+    )
+    md = pre_renderitza_crides(md, converteix)
+    cos = converteix(md)
     sopa, index = construeix(cos, diagrames)
     intern = "".join(str(c) for c in sopa.body.children) if sopa.body else str(sopa)
 

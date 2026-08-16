@@ -20,3 +20,6 @@ tools/actualitza_informe.py
 
 # Esborranys de correu (qualsevol data) — no es publiquen
 correu_*.md
+
+# Fitxers temporals del Word
+~$*
