@@ -260,8 +260,8 @@ def test_substituts_del_vedat_a_les_proves():
                 for i, p in zip(v["ID"], v["Prioritat"])
             ]
             v["adj"] = pd.to_numeric(v[col], errors="coerce")
-            subs = v[v[col].astype(str).str.fullmatch(r"s\d+")].copy()
-            subs["n"] = subs[col].astype(str).str[1:].astype(int)
+            subs = v[v[col].astype(str).str.fullmatch(r"s\d+( \(E\))?")].copy()
+            subs["n"] = subs[col].astype(str).str.extract(r"^s(\d+)")[0].astype(int)
             comptador = v[v["adj"].notna()]["parr"].value_counts().to_dict()
             vist = None
             for _, row in subs.sort_values("n").iterrows():
@@ -302,7 +302,7 @@ def test_vedat_cupo_es_sostre_de_preferencia():
     assert t["reserva_total"] == 24
 
 
-# ── E / H — SOSTRE D'ESTRANGERS ──────────────────────────────────────────────
+# ── E / H — SOSTRE D'ESTRANGERS (només captures; substituts marcats) ──────────────────────────────────────────────
 
 def test_sostre_estrangers_per_zona():
     r, _ = _run_isard()
@@ -313,10 +313,9 @@ def test_sostre_estrangers_per_zona():
         assert estr <= math.floor(0.10 * caps)
 
 
-def test_sostre_estrangers_tanca_la_substitucio():
-    """El sostre del 10% (art. 53.4) compta captures I substitucions: un cop
-    exhaurit, els estrangers no residents queden fora del sorteig de substitució
-    i no reben cap ordre (la llicència es considera adjudicada hi accedeixin o no)."""
+def test_estrangers_tornen_a_la_substitucio():
+    """El sostre del 10% (art. 53.4) només limita les captures. A l'ordre de
+    substitució els estrangers no residents hi tornen a entrar per prioritat."""
     import numpy as np
     # 10 captures -> sostre = 1 estranger. Els estrangers tenen la millor prioritat,
     # o sigui que el sostre es consumeix ja amb les captures.
@@ -334,35 +333,131 @@ def test_sostre_estrangers_tanca_la_substitucio():
     adj = out[out["ordre"].notna()]
     assert len(adj) == 10
     assert (adj["Estranger"] == "si").sum() == 1        # sostre = floor(0.10*10)
-    subs = out[out["substitut"].notna()]
-    assert (subs["Estranger"] == "si").sum() == 0       # cap estranger substitut
-    # Els 4 estrangers restants no tenen ni captura ni ordre de substitució.
-    fora = out[out["ordre"].isna() & out["substitut"].isna()]
-    assert len(fora) == 4 and (fora["Estranger"] == "si").all()
+    subs = out[out["substitut"].notna()].sort_values("substitut")
+    # Els 4 estrangers restants (prioritat 2) encapçalen l'ordre de substitució.
+    assert list(subs.head(4)["Estranger"]) == ["si"] * 4
+    assert len(adj) + len(subs) == 25                    # ningú queda fora
 
 
-def test_estrangers_exclosos_es_marquen_al_resultat():
-    """Als resultats, l'estranger descartat pel sostre porta etiqueta pròpia: una
-    cel·la buida voldria dir «no inscrit a la zona»."""
-    p, ins, zones = _isard()
-    r, _ = d.processar_sorteigs(p.copy(), ins.copy(), copy.deepcopy(zones), "Isard", seed=42)
-    trobats = 0
+def test_captures_sense_candidats_no_estrangers():
+    """Si només queden estrangers i el sostre és ple, les captures que sobren no es
+    donen, però els estrangers igualment reben ordre de substitució."""
+    import numpy as np
+    rows = [{"ID": 100 + i, "Prioritat": 2, "anys_sense_captura": 0, "Estranger": "SI",
+             "Parroquia": "La Massana"} for i in range(5)]
+    out = d.sorteig_individual(
+        pd.DataFrame(rows), [("Indeterminat", 10)], True, {}, 0.0, 10.0,
+        np.random.RandomState(1),
+    )
+    assert out["ordre"].notna().sum() == 1
+    assert out["substitut"].notna().sum() == 4
+
+
+def test_substituts_estrangers_es_marquen_al_resultat():
+    """Als resultats, els substituts estrangers porten la marca (E) a la seva
+    posició, i el resum per zona dona el màxim i els estrangers adjudicats."""
+    r, _ = _run_isard()
+    marcats = 0
     for zona, caps in CAPS_IS.items():
         col = zona.replace(" ", "_")
-        marcats = r[r[col].astype(str) == d.ETIQUETA_EXCLOS]
-        # Qui porta l'etiqueta ha de ser estranger, i mai un adjudicatari.
-        assert marcats["Estranger"].astype(str).str.upper().isin(["SI", "SÍ"]).all()
-        trobats += len(marcats)
+        txt = r[col].astype(str)
+        subs = r[txt.str.fullmatch(r"s\d+( \(E\))?")]
+        es_estr = subs["Estranger"].astype(str).str.upper().isin(["SI", "SÍ"])
+        assert (subs[col].astype(str).str.endswith(d.SUFIX_SUBST_ESTRANGER) == es_estr).all()
+        marcats += int(es_estr.sum())
+        # Numeració sense forats: s1..sN.
+        nums = sorted(int(v.split(" ")[0][1:]) for v in subs[col].astype(str))
+        assert nums == list(range(1, len(nums) + 1))
         # El sostre segueix complint-se entre els adjudicataris.
         adj = r[pd.to_numeric(r[col], errors="coerce").notna()]
         estr = adj["Estranger"].astype(str).str.upper().isin(["SI", "SÍ"]).sum()
         assert estr <= math.floor(0.10 * caps)
-    assert trobats > 0, "les dades de prova no exerciten el sostre d'estrangers"
-    # I no compten com a captura de cara a l'any vinent.
-    marcats = r[r["IS_VCE"].astype(str) == d.ETIQUETA_EXCLOS]
-    if len(marcats):
-        assert (marcats["Nova_prioritat"] == 2).all()
-        assert (marcats["Nou_Anys_sense_captura"] == marcats["anys_sense_captura"] + 1).all()
+        fila = next(z for z in r.attrs["resum_zones"] if z["Zona"] == zona)
+        assert fila["Max_estrangers"] == math.floor(0.10 * caps)
+        assert fila["Estrangers_adjudicats"] == estr
+    assert marcats > 0, "les dades de prova no exerciten els substituts estrangers"
+    # Cap inscrit queda sense posició: ja no hi ha estrangers exclosos.
+    assert not r[["IS_TCC", "IS_VCRS", "IS_VCX", "IS_VCE"]].astype(str).apply(
+        lambda c: c.str.startswith("exclòs")).any().any()
+
+
+# ── ART. 55.1.g — ISARD EN VEDAT DOS ANYS CONSECUTIUS ───────────────────────
+
+def _isard_sintetic(flag_vedat=None):
+    """Isard sintètic: TCC (2 captures) i dos vedats (2 captures cadascun)."""
+    n = 12
+    p = pd.DataFrame({
+        "ID": range(1, n + 1),
+        "Prioritat": [2] * n,
+        "anys_sense_captura": list(range(n, 0, -1)),   # ID 1 té la millor posició
+        "Estranger": ["No"] * n,
+        "Parroquia": ["Encamp"] * n,
+    })
+    if flag_vedat is not None:
+        p[d.COL_ISARD_VEDAT] = ["Sí" if i in flag_vedat else "No" for i in p["ID"]]
+    ins = pd.DataFrame(
+        [(i, z) for z in ["TCC", "VA", "VB"] for i in range(1, n + 1)],
+        columns=["ID", "Codi_Sorteig"],
+    )
+    zones = [
+        {"nom": "TCC", "tipus": "TCC", "captures": [{"tipus": ["Indeterminat"], "quantitat": 2}]},
+        {"nom": "VA", "tipus": "Vedat", "reserva_pct": 50, "parroquies": {"Encamp": 100},
+         "captures": [{"tipus": ["Indeterminat"], "quantitat": 2}]},
+        {"nom": "VB", "tipus": "Vedat", "reserva_pct": 50, "parroquies": {"Encamp": 100},
+         "captures": [{"tipus": ["Indeterminat"], "quantitat": 2}]},
+    ]
+    return p, ins, zones
+
+
+def test_55g_exclou_dels_vedats_pero_no_del_tcc():
+    p, ins, zones = _isard_sintetic(flag_vedat={1, 3, 4})
+    r, _ = d.processar_sorteigs(p, ins, zones, "Isard", seed=1)
+    r = r.set_index("ID")
+    for i in (1, 3, 4):
+        assert r.at[i, "VA"] == d.ETIQUETA_EXCLOS_55G
+        assert r.at[i, "VB"] == d.ETIQUETA_EXCLOS_55G
+    # Al TCC hi participen: l'ID 1 (millor posició) hi guanya.
+    assert str(r.at[1, "TCC"]) == "1"
+    # Cap exclòs guanya ni és substitut en un vedat.
+    vedats = r[["VA", "VB"]].astype(str)
+    assert not vedats.loc[[1, 3, 4]].apply(lambda c: c.str.fullmatch(r"s?\d+")).any().any()
+    files = {z["Zona"]: z for z in r.attrs["resum_zones"]}
+    assert files["VA"]["Exclosos_55_1_g"] == 3 and files["TCC"]["Exclosos_55_1_g"] == 0
+
+
+def test_55g_columna_de_sortida_i_prioritat():
+    p, ins, zones = _isard_sintetic(flag_vedat={3})
+    r, _ = d.processar_sorteigs(p, ins, zones, "Isard", seed=1)
+    r = r.set_index("ID")
+    for i in r.index:
+        guanya_vedat = any(pd.notna(pd.to_numeric(r.at[i, z], errors="coerce")) for z in ["VA", "VB"])
+        assert r.at[i, d.COL_ISARD_VEDAT] == ("Sí" if guanya_vedat else "No")
+    # L'exclòs no pot guanyar cap vedat, així que surt «No»: l'any vinent queda lliure.
+    assert r.at[3, d.COL_ISARD_VEDAT] == "No"
+    # Prioritat habitual: si no treu cap captura, P2 i un any més sense captura.
+    if pd.isna(pd.to_numeric(r.at[3, "TCC"], errors="coerce")):
+        assert r.at[3, "Nova_prioritat"] == 2
+        assert r.at[3, "Nou_Anys_sense_captura"] == p.set_index("ID").at[3, "anys_sense_captura"] + 1
+
+
+def test_55g_tots_exclosos_no_penja():
+    p, ins, zones = _isard_sintetic(flag_vedat=set(range(1, 13)))
+    r, _ = d.processar_sorteigs(p, ins, zones, "Isard", seed=1)
+    assert (r["VA"] == d.ETIQUETA_EXCLOS_55G).all()
+    assert (r[d.COL_ISARD_VEDAT] == "No").all()
+
+
+def test_55g_nomes_isard_i_columna_opcional():
+    # Sense la columna d'entrada: sorteig normal, però la de sortida hi és.
+    p, ins, zones = _isard_sintetic()
+    r, _ = d.processar_sorteigs(p, ins, zones, "Isard", seed=1)
+    assert d.COL_ISARD_VEDAT in r.columns
+    assert not (r[["VA", "VB"]] == d.ETIQUETA_EXCLOS_55G).any().any()
+    # Altres espècies: ni exclusió ni columna.
+    p, ins, zones = _isard_sintetic(flag_vedat={1, 2})
+    r, _ = d.processar_sorteigs(p, ins, zones, "Mufló", seed=1)
+    assert d.COL_ISARD_VEDAT not in r.columns
+    assert not (r[["VA", "VB"]] == d.ETIQUETA_EXCLOS_55G).any().any()
 
 
 def test_sostre_zero_no_penja():

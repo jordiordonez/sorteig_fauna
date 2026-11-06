@@ -6,8 +6,9 @@ Document de referència de l'aplicació *Sorteig Fauna*, que executa els sortejo
 llicències especials de caça d'espècies sotmeses a pla de caça (isard, cabirol,
 mufló i qualsevol espècie nova que s'hi doni d'alta).
 
-Base normativa: **Reglament de caça del 4 de juny del 2025**, articles 52 a 57, i
-**Llei 18/2024, del 19 de desembre, de caça**.
+Base normativa: **Reglament de caça del 4 de juny del 2025**, articles 52 a 57,
+**modificat pel Reglament del 23 de setembre del 2026** (nova lletra g de
+l'art. 55.1), i **Llei 18/2024, del 19 de desembre, de caça**.
 
 > Aquest manual descriu el **comportament real de l'aplicació**. Quan una regla
 > admet més d'una lectura del Reglament, hi ha un apartat **«Interpretació
@@ -21,7 +22,7 @@ Base normativa: **Reglament de caça del 4 de juny del 2025**, articles 52 a 57,
 2. [Què entra i què surt](#2-què-entra-i-què-surt)
 3. [Visió general del procés](#3-visió-general-del-procés)
 4. [Les prioritats (art. 54)](#4-les-prioritats-art-54)
-5. [Sorteig d'un vedat (art. 55.1)](#5-sorteig-dun-vedat-art-551)
+5. [Sorteig d'un vedat (art. 55.1)](#5-sorteig-dun-vedat-art-551) — inclou l'[exclusió de l'art. 55.1.g](#56-isard-no-dos-anys-seguits-en-vedat-art-551g)
 6. [Sorteig en terreny cinegètic comú](#6-sorteig-en-terreny-cinegètic-comú)
 7. [Modalitat de colla i individual (arts. 56 i 57)](#7-modalitat-de-colla-i-individual-arts-56-i-57)
 8. [Sostre d'estrangers no residents (art. 53.4)](#8-sostre-destrangers-no-residents-art-534)
@@ -45,9 +46,10 @@ Base normativa: **Reglament de caça del 4 de juny del 2025**, articles 52 a 57,
 | **Modalitat A/B** | Mecànica de colles (A) i individual (B) dels arts. 56-57. Avui només l'`IS TCC` de l'isard. |
 | **Captura** | Cada llicència especial que es pot adjudicar. |
 | **Adjudicatari** | Qui rep una captura. Al full de resultats porta un número: `1`, `2`, `3`… |
-| **Substitut** | Qui no rep captura però queda a la llista d'espera ordenada. Porta `s1`, `s2`, `s3`… |
+| **Substitut** | Qui no rep captura però queda a la llista d'espera ordenada. Porta `s1`, `s2`, `s3`…; si és estranger no resident, `s3 (E)`. |
 | **Cupo parroquial** | Nombre enter de captures sobre les quals els residents d'una parròquia tenen **preferència**. **No** és un mínim garantit. |
-| **Sostre** | Límit superior. N'hi ha dos, i són coses diferents: el **cupo parroquial** (preferència) i el **sostre d'estrangers** (elegibilitat). |
+| **Sostre** | Límit superior. N'hi ha dos, i són coses diferents: el **cupo parroquial** (preferència) i el **sostre d'estrangers** (màxim d'estrangers adjudicataris). |
+| **Exclòs (art. 55.1.g)** | Caçador d'isard que l'any anterior va ser adjudicatari en un vedat: aquest any no pot optar a cap vedat d'isard. |
 | **Llavor** | Número que fixa l'atzar. Amb la mateixa llavor i les mateixes dades, el sorteig surt idèntic. |
 
 ---
@@ -66,6 +68,11 @@ Base normativa: **Reglament de caça del 4 de juny del 2025**, articles 52 a 57,
 | `Estranger` | sempre | `SI` / `NO` |
 | `Parroquia` | si hi ha cap **Vedat** | nom o codi 1-7 |
 | `Modalitat`, `Colla_ID` | si hi ha **modalitat A/B** | `A` o `B`; identificador de colla |
+| `Adjudicat_isard_vedat` | **isard**, si hi ha cap vedat (opcional) | `Sí` / `No`: va ser adjudicatari d'un isard en un vedat l'any anterior (apartat 5.6) |
+
+> La columna `Adjudicat_isard_vedat` **es copia tal qual dels resultats de l'any
+> anterior**, que ja la porten. Si falta, el sorteig s'executa igualment però
+> **no s'aplica l'exclusió de l'art. 55.1.g**, i l'aplicació en mostra un avís.
 
 **2. CSV d'inscrits** — `ID` i `Codi_Sorteig`, on el codi ha de coincidir **exactament**
 amb el nom de la zona configurada.
@@ -77,8 +84,8 @@ repartiment parroquial. S'exporta i s'importa en JSON per reutilitzar-la entre a
 ### Sortida
 
 Una fila per caçador i, per a cada zona, dues columnes: la **posició** (o l'etiqueta
-de substitut) i el **tipus de captura**. Més dues columnes finals amb els valors
-provisionals de cara a l'any vinent. Detall a l'[apartat 11](#11-els-resultats-columnes-i-etiquetes).
+de substitut) i el **tipus de captura**. Més les columnes finals amb els valors
+provisionals de cara a l'any vinent (a l'isard, també `Adjudicat_isard_vedat`). Detall a l'[apartat 11](#11-els-resultats-columnes-i-etiquetes).
 
 ---
 
@@ -106,7 +113,10 @@ Dins de cada zona:
 ```mermaid
 flowchart TD
     A["Participants inscrits a la zona"] --> B["Recalcular prioritats<br/>segons el que ja s'ha guanyat"]
-    B --> C{"Tipus de zona"}
+    B --> X{"Vedat d'isard?"}
+    X -->|Sí| Y["Art. 55.1.g: queden fora els<br/>adjudicataris de vedat de l'any anterior"]
+    X -->|No| C{"Tipus de zona"}
+    Y --> C
     C -->|"TCC amb modalitat A/B"| D["Arts. 56 i 57<br/>colles + individual"]
     C -->|"TCC sense modalitat"| E["Prioritat, anys sense captura, atzar"]
     C -->|"Vedat"| F["Art. 55.1<br/>preferència parroquial"]
@@ -212,8 +222,8 @@ Les captures **no** es reparteixen per blocs. Es van adjudicant d'una en una, i
 
 ```mermaid
 flowchart TD
-    A["Candidats que encara no tenen res"] --> B{"El sostre d'estrangers<br/>ja està exhaurit?"}
-    B -->|Sí| C["Es descarten els<br/>estrangers no residents"]
+    A["Candidats que encara no tenen res"] --> B{"Encara s'adjudiquen captures<br/>i el sostre d'estrangers és ple?"}
+    B -->|Sí| C["Els estrangers no residents<br/>no poden rebre aquesta captura"]
     B -->|No| D["Hi competeixen tots"]
     C --> E["S'ordenen pels 5 criteris<br/>de la taula de sota"]
     D --> E
@@ -221,7 +231,7 @@ flowchart TD
     F --> G["Es recompta el cupo consumit<br/>de la seva parròquia"]
     G --> H{"Queden captures?"}
     H -->|Sí| A
-    H -->|No| I["Es continua igual,<br/>ara amb l'ordre de substitució"]
+    H -->|No| I["Es continua igual, ara amb l'ordre<br/>de substitució, estrangers inclosos"]
 ```
 
 Els cinc criteris, **estrictament en aquest ordre**. Només es passa al següent si
@@ -263,6 +273,56 @@ Conseqüències, totes dues normals i esperades:
 La taula que es publica amb els resultats surt **en l'ordre parroquial sortejat**,
 amb la columna `Ordre` (1r, 2r, 3r…), perquè coincideixi amb el text que la precedeix.
 
+### 5.6 Isard: no dos anys seguits en vedat (art. 55.1.g)
+
+> *«Les persones adjudicatàries d'una llicència especial de caça d'isard
+> corresponent a vedats de caça no poden ser adjudicatàries d'una llicència
+> especial de caça d'isard durant dos anys consecutius, en qualsevol vedat de caça.»*
+> (afegit pel Reglament del 23 de setembre del 2026)
+
+**Per què.** Com que els vedats es sortegen després de l'`IS TCC`, qui s'inscriu a
+tot i no treu el TCC tenia moltes opcions de guanyar un vedat (sobretot `IS VCE`) any
+rere any. Llavors sempre arribava al sorteig següent amb prioritat 4 i gairebé mai
+no podia optar a un isard al TCC.
+
+**Com ho aplica l'aplicació:**
+
+```mermaid
+flowchart LR
+    A["Any N<br/>guanya un vedat d'isard"] --> B["Resultats N:<br/>Adjudicat_isard_vedat = Sí"]
+    B --> C["Any N+1<br/>exclòs de TOTS els vedats d'isard<br/>participa al TCC"]
+    C --> D["Resultats N+1:<br/>Adjudicat_isard_vedat = No"]
+    D --> E["Any N+2<br/>lliure: pot optar a tot"]
+```
+
+1. **Any N.** Qui guanya una captura en **qualsevol** vedat d'isard surt amb
+   `Adjudicat_isard_vedat = Sí` als resultats.
+2. **Any N+1.** Aquesta columna s'afegeix al CSV de prioritats. Qui hi té `Sí`:
+   - **queda fora de tots els vedats d'isard**, tant de les captures com de l'ordre
+     de substitució, i al full hi surt **`exclòs (art. 55.1.g)`**;
+   - **participa amb normalitat a l'`IS TCC`**;
+   - compta com a **presentat**: la prioritat de sortida és l'habitual (**4** si
+     treu una captura al TCC, **2** si no en treu cap) i suma un any sense captura
+     si no en treu cap.
+3. **Any N+2.** Com que l'any N+1 no podia guanyar cap vedat, hi surt `No`: torna a
+   poder optar a tot **sense que calgui fer res**. L'exclusió es consumeix sola.
+
+> **Exemple.** El caçador A guanya `IS VCE` el 2026. El 2027 s'inscriu a tot: a
+> l'`IS TCC` hi participa amb la seva prioritat (4); a `IS VCRS`, `IS VCX` i `IS VCE`
+> hi surt `exclòs (art. 55.1.g)`. Si no treu el TCC, acaba el 2027 amb prioritat 2 i
+> `Adjudicat_isard_vedat = No`. El 2028 opta al TCC amb prioritat 2.
+
+⚠️ **Dues coses que s'han de fer a mà:**
+
+- **Substituts que acaben entrant en un vedat.** Passen a ser adjudicataris, però
+  l'aplicació no sap qui ha entrat. Cal posar-los `Sí` a la columna abans de fer
+  servir el fitxer l'any següent (com ja es fa amb la prioritat 1).
+- **Primer any (sorteig del 2027).** Els resultats del 2026 encara no porten la
+  columna: s'ha d'omplir a mà amb els adjudicataris de vedat d'isard del 2026.
+
+La regla **només s'aplica a l'isard** i a les zones de tipus *Vedat*. Al cabirol i
+al mufló no hi ha ni exclusió ni columna.
+
 ---
 
 ## 6. Sorteig en terreny cinegètic comú
@@ -274,7 +334,7 @@ En una zona **TCC sense modalitat A/B** no hi ha cap preferència parroquial
 2. Més anys sense captura.
 3. Atzar.
 
-I el sostre d'estrangers per damunt, com a tot arreu.
+I el sostre d'estrangers per damunt de les captures, com a tot arreu (apartat 8).
 
 ---
 
@@ -357,50 +417,54 @@ Es calcula **per zona**, sobre les captures ofertes.
 > 10 captures → sostre 1; 6 captures → sostre **0**. En una zona de menys de 10
 > captures, el sostre del 10% deixa els estrangers fora del tot.
 
-### 8.2 Què compta contra el sostre
+### 8.2 Què limita el sostre: les captures
 
-**Les captures adjudicades i les substitucions, per igual.** Un cop exhaurit, els
-estrangers no residents **queden fora del sorteig**: ni reben captura ni reben ordre
-de substitució.
+El sostre limita **les captures que s'atorguen en el sorteig**. Mentre no és ple,
+els estrangers no residents competeixen com tothom; quan s'omple, ja no poden
+rebre cap captura més.
+
+**A l'ordre de substitució hi tornen a entrar**, amb les normes ordinàries de
+prioritat (i, als vedats, amb la preferència parroquial), i hi surten **marcats
+amb `(E)`**.
 
 ```mermaid
 flowchart TD
-    A["Estranger no resident"] --> B{"Sostre ja exhaurit?"}
-    B -->|No| C["Competeix normalment<br/>i consumeix una plaça del sostre"]
-    B -->|Sí| D["Fora del sorteig"]
-    D --> E["Al full: exclòs sostre 10%"]
+    A["Estranger no resident"] --> B{"Sostre de la zona ple?"}
+    B -->|No| C["Competeix normalment<br/>per la captura"]
+    B -->|Sí| D["No pot rebre captura"]
+    C --> E{"Ha guanyat?"}
+    E -->|Sí| F["Adjudicatari: 1, 2, 3…"]
+    E -->|No| G["Ordre de substitució<br/>per prioritat: s3 (E)"]
+    D --> G
 ```
 
-### 8.3 Interpretació adoptada: per què no queden com a substituts
+### 8.3 Com es criden els substituts marcats `(E)`
 
-> Un substitut que entra **passa a ser adjudicatari**. Si el sostre ja està ple i
-> el següent de la llista és estranger, adjudicar-li la plaça portaria el pla per
-> sobre del 10%.
+Un substitut que entra **passa a ser adjudicatari**. Per no passar mai del 10%, la
+llista porta la marca i, en el moment de cridar substituts, s'aplica aquesta regla:
+
+1. Quan algú es desdiu, es crida **el següent de la llista**.
+2. Si és un substitut **`(E)`**, només entra si **en aquell moment** la zona té
+   **menys estrangers adjudicats que el màxim**. Les dues xifres surten a la taula
+   *Sostre d'estrangers* de la pantalla de resultats.
+3. A la pràctica, **quan el sostre ja és ple, un `(E)` només entra si qui es desdiu
+   és un estranger**.
+4. Si no hi pot entrar, **es passa al següent** i el `(E)` **conserva el seu lloc**
+   per a una baixa posterior.
+
+Així ningú no perd la posició que li correspon per prioritat i el 10% no se supera
+mai. Criteri acordat amb el Govern el novembre del 2026; substitueix el d'agost, que
+deixava els estrangers fora de la llista quan el sostre era ple.
+
+> **Exemple (isard 2026, `IS VCE`, prova del Govern).** 48 captures → màxim 4
+> estrangers, i les 4 places les ocupen estrangers en l'atorgament. A l'ordre de
+> substitució hi surten **4 estrangers, a les posicions `s1 (E)`, `s3 (E)`, `s4 (E)` i
+> `s5 (E)`**.
 >
-> **El criteri adoptat** és que la llicència es considera **adjudicada tant si qui
-> la té hi accedeix com si desisteix**: amb el sostre consumit, la quota del pla
-> està gastada i complerta, i cap estranger no hi pot entrar per substitució.
->
-> **Conseqüència, dita expressament:** si un estranger adjudicatari desisteix, la
-> seva plaça la cobreix el següent de la llista general, que serà un resident. No
-> se substitueix un estranger per un altre estranger.
->
-> Criteri acordat amb el Govern el 12 d'agost del 2026.
-
-> **Cas real que ho va motivar (isard 2026, `IS VCE`).** 30 captures, sostre 3, i
-> les 3 se les van endur estrangers en l'atorgament de captures. Amb el criteri
-> anterior, **els quatre primers substituts de la llista eren estrangers**: la baixa
-> de qualsevol dels 27 adjudicataris residents hauria donat una quarta llicència a
-> un estranger, un 13,3%.
-
-### 8.4 Marcatge al full
-
-Els descartats pel sostre porten l'etiqueta **`exclòs (sostre 10%)`**, no una cel·la
-buida. La distinció importa: una cel·la buida vol dir **«no inscrit en aquesta
-zona»**. A efectes de la prioritat de l'any vinent **compten com a presentats sense
-adjudicació**.
-
----
+> - Si es desdiu un **resident**, toca `s1 (E)`, però la zona ja té 4 de 4
+>   estrangers: no entra. Es passa a **`s2`**, que entra.
+> - Si després es desdiu un **estranger**, la zona baixa a 3 de 4: entra **`s1 (E)`**,
+>   que havia conservat el lloc.
 
 ## 9. Ordre de substitució (arts. 55.1.f i 57.4)
 
@@ -427,7 +491,9 @@ Això vol dir, en un vedat:
 - La **prioritat** segueix manant.
 - La **preferència parroquial segueix vigent** mentre la parròquia no hagi exhaurit
   el seu cupo, perquè un substitut que entra ocupa una captura del vedat.
-- El **sostre d'estrangers** segueix comptant (apartat 8).
+- Els **estrangers no residents** hi són, per prioritat, marcats `(E)`; la regla per
+  cridar-los és la de l'apartat 8.3.
+- Als vedats d'isard, els **exclosos per l'art. 55.1.g** no hi surten (apartat 5.6).
 
 > **Exemple (`IS VCRS`, prova del 2026).** Nou de les deu captures van a no
 > residents per prioritat, i el cupo parroquial queda gairebé intacte: en aquella
@@ -466,7 +532,8 @@ Per a cada zona hi ha dues columnes: `<zona>` i `Tipus_<zona>`.
 |---|---|
 | `1`, `2`, `3`… | **Adjudicatari**, i la posició en què li va tocar |
 | `s1`, `s2`, `s3`… | **Substitut**, i el seu ordre a la llista d'espera |
-| `exclòs (sostre 10%)` | Estranger no resident **descartat pel sostre** de l'art. 53.4 |
+| `s3 (E)` | **Substitut estranger no resident**: només entra si la zona té menys estrangers adjudicats que el màxim (apartat 8.3) |
+| `exclòs (art. 55.1.g)` | **Isard:** inscrit en un vedat però exclòs perquè l'any anterior va ser adjudicatari en un vedat (apartat 5.6) |
 | *(buit)* | **No inscrit** en aquesta zona |
 
 I al final del full:
@@ -475,11 +542,17 @@ I al final del full:
 |---|---|
 | `Nou_Anys_sense_captura` | `0` si ha obtingut alguna captura; si no, l'anterior + 1 |
 | `Nova_prioritat` | Estimació de sortida per a l'any vinent (apartat 12) |
+| `Adjudicat_isard_vedat` | **Només isard.** `Sí` si ha guanyat una captura en algun vedat d'isard. Es copia al CSV de prioritats de l'any vinent (apartat 5.6) |
 
-A més, amb els resultats es publica, per a cada vedat, **l'ordre parroquial sortejat
-i la taula de cupos**, i un **resum per zona** amb les assignacions previstes, les
-sol·licituds, les assignacions finals, el percentatge d'estrangers i el recompte
-d'adjudicataris per parròquia.
+A més, a la pantalla de resultats es mostra:
+
+- Per a cada vedat, **l'ordre parroquial sortejat i la taula de cupos**.
+- La taula **Sostre d'estrangers**, per zona: captures, **màxim d'estrangers**,
+  **estrangers adjudicats** i, a l'isard, quants inscrits han quedat **exclosos per
+  l'art. 55.1.g**. És la taula que cal tenir a mà per cridar els substituts `(E)`.
+- Al tauler, un **resum per zona** amb les assignacions previstes, les sol·licituds,
+  les assignacions finals, el percentatge d'estrangers i el recompte d'adjudicataris
+  per parròquia.
 
 ---
 
@@ -491,6 +564,7 @@ L'aplicació proposa `Nova_prioritat` així:
 |---|---|
 | Ha obtingut captura en alguna zona | **4** |
 | S'ha presentat i no n'ha obtingut cap | **2** |
+| Exclòs d'un vedat per l'art. 55.1.g | Com tothom: **4** si ha guanyat al TCC, **2** si no |
 
 ⚠️ **Són valors provisionals.** Les prioritats **1** (femella efectivament caçada,
 art. 54.1.a) i **3** (no presentats, art. 54.1.c) **les han de fixar els tècnics del
@@ -510,8 +584,11 @@ arribar a fer i quin animal era, i el cens complet de qui no s'ha presentat.
 | **Menys sol·licitants que captures** | Adjudica les que pot; **la resta queden sense adjudicar** (vegeu l'apartat 15) |
 | **Parròquia buida, no reconeguda, o de fora del vedat** | El caçador compta com a **no resident**: sense preferència, però competeix per prioritat |
 | **Parròquia amb cupo 0** (p. ex. Escaldes al `VCE`) | Els seus residents no tenen mai preferència; competeixen només per prioritat |
-| **Sostre d'estrangers a 0** (percentatge 0, o zona petita) | Cap estranger no pot rebre captura ni ordre de substitució; queden marcats `exclòs (sostre 10%)` |
-| **Només queden estrangers i el sostre és ple** | El sorteig s'atura de manera ordenada; les captures sobrants queden sense adjudicar |
+| **Sostre d'estrangers a 0** (percentatge 0, o zona petita) | Cap estranger no pot rebre captura; tots surten a l'ordre de substitució marcats `(E)`, i no hi poden entrar |
+| **Només queden estrangers i el sostre és ple** | Les captures sobrants queden sense adjudicar; els estrangers reben igualment ordre de substitució `(E)` |
+| **Isard sense la columna `Adjudicat_isard_vedat`** | El sorteig s'executa sense l'exclusió de l'art. 55.1.g i se'n mostra un avís |
+| **Tots els inscrits a un vedat d'isard estan exclosos (art. 55.1.g)** | Ningú no hi rep captura; tots surten `exclòs (art. 55.1.g)` |
+| **Substitut que entra en un vedat d'isard** | L'aplicació no ho sap: cal posar-li `Sí` a mà a `Adjudicat_isard_vedat` |
 | **Empat exacte al repartiment del cupo** | El desfà l'ordre parroquial sortejat (art. 55.1.b) |
 | **Un vedat d'una sola parròquia** | No hi ha res a sortejar: l'ordre és aquella parròquia i s'endú tot el cupo |
 | **Un vedat sense repartiment parroquial configurat** | Es comporta com una zona sense preferència parroquial |
@@ -529,9 +606,10 @@ substitut. Sense llavor, cada execució dóna un resultat diferent.
 **Recomanació:** fixar sempre una llavor i **deixar-la escrita a l'acta**. Permet
 tornar a generar el sorteig sencer si més endavant cal comprovar-lo o reconstruir-lo.
 
-L'aplicació es valida amb **19 proves automàtiques** que comproven, contra fitxers
-reals, la jerarquia de prioritats, el càlcul dels cupos, la preferència parroquial
-com a sostre, l'ordre de substitució, els dos sostres i la reproductibilitat.
+L'aplicació es valida amb **24 proves automàtiques** que comproven, contra fitxers
+reals i casos construïts, la jerarquia de prioritats, el càlcul dels cupos, la
+preferència parroquial com a sostre, l'ordre de substitució, els dos sostres, els
+substituts estrangers marcats, l'exclusió de l'art. 55.1.g i la reproductibilitat.
 
 ---
 
@@ -543,8 +621,10 @@ Perquè quedi clar el límit del que hi ha automatitzat:
   als mateixos, per ordre i amb la seva acceptació voluntària). Si sobren captures,
   queden sense adjudicar i s'han de resoldre a mà.
 - **No fixa les prioritats 1 i 3** de l'any vinent (apartat 12).
-- **No gestiona les baixes ni les substitucions efectives.** Produeix l'ordre; qui
-  entra i quan ho decideix el Govern.
+- **No gestiona les baixes ni les substitucions efectives.** Produeix l'ordre
+  (amb la marca `(E)` i la taula del sostre per aplicar l'apartat 8.3); qui entra i
+  quan ho decideix el Govern. Per això els substituts que entren en un vedat d'isard
+  s'han de marcar a mà a `Adjudicat_isard_vedat`.
 - **No comprova el cens.** Es fia del que digui el CSV de prioritats: parròquia,
   condició d'estranger i prioritat d'entrada.
 - **No emet les llicències** ni cap document administratiu.
@@ -552,5 +632,5 @@ Perquè quedi clar el límit del que hi ha automatitzat:
 ---
 
 *Aplicació desenvolupada per a la Direcció de Medi Ambient. Manual actualitzat el
-12 d'agost del 2026, amb el comportament vigent després de les correccions
-d'agost sobre l'ordre parroquial, l'ordre de substitució i el sostre d'estrangers.*
+6 de novembre del 2026: estrangers reincorporats a l'ordre de substitució amb la
+marca `(E)`, i nova exclusió de l'art. 55.1.g per a l'isard en vedats.*

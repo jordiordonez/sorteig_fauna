@@ -99,6 +99,11 @@ def _render_zone(zones, i):
                 min_value=0.0, max_value=100.0, step=1.0,
                 value=float(z.get("estranger_pct", config.ESTRANGER_PCT_DEFAULT)),
                 key=f"estr_{zid}",
+                help=(
+                    "Màxim de captures per a estrangers no residents (art. 53.4), sobre "
+                    "les captures de la zona. Quan s'omple ja no en poden guanyar més, "
+                    "però surten a l'ordre de substitució per prioritat, marcats (E)."
+                ),
             )
         )
 
@@ -245,6 +250,7 @@ with st.expander("Format dels CSV"):
 | `Estranger` | sempre (Sí/No) |
 | `Parroquia` | si alguna zona és **Vedat** |
 | `Modalitat` (`A`/`B`) i `Colla_ID` | si alguna zona té **modalitat A/B** |
+| `Adjudicat_isard_vedat` | **Isard** amb vedats (Sí/No): adjudicataris d'un isard en vedat l'any anterior, que en queden exclosos aquest any (art. 55.1.g). És la columna homònima dels resultats de l'any passat |
 
 **CSV d'inscrits** — columnes `ID` i `Codi_Sorteig` (el codi ha de coincidir amb el **nom de la zona**).
         """
@@ -326,6 +332,16 @@ if st.session_state.get("run_draw"):
     if missing:
         st.error(f"Falten columnes al CSV de prioritats: {', '.join(sorted(missing))}")
         st.stop()
+    if (
+        draw_logic.es_isard(especie)
+        and needs_parroquia
+        and draw_logic.COL_ISARD_VEDAT not in df1.columns
+    ):
+        st.warning(
+            f"El CSV de prioritats no té la columna `{draw_logic.COL_ISARD_VEDAT}`: "
+            "no s'aplicarà l'exclusió dels adjudicataris de vedat de l'any anterior "
+            "(art. 55.1.g)."
+        )
 
     # ── Avís d'IDs presents només en un CSV ───────────────────────────────
     ids_prio = set(df1["ID"].astype(str))
@@ -437,6 +453,35 @@ if st.session_state.get("run_draw"):
                             columns=["Ordre", "Parròquia", "Cupo (sostre)"],
                         ).set_index("Ordre")
                     )
+
+    resum_zones = resultat.attrs.get("resum_zones") or []
+    if resum_zones:
+        titol = "🌍 Sostre d'estrangers (art. 53.4)"
+        if draw_logic.es_isard(especie):
+            titol += " i exclusions de l'art. 55.1.g"
+        with st.expander(titol, expanded=True):
+            taula = pd.DataFrame(resum_zones).rename(columns={
+                "Captures": "Captures",
+                "Max_estrangers": "Màx. estrangers",
+                "Estrangers_adjudicats": "Estrangers adjudicats",
+                "Exclosos_55_1_g": "Exclosos art. 55.1.g",
+            }).set_index("Zona")
+            if not draw_logic.es_isard(especie) or not taula["Exclosos art. 55.1.g"].any():
+                taula = taula.drop(columns=["Exclosos art. 55.1.g"])
+            st.table(taula)
+            st.caption(
+                "Els substituts marcats **(E)** són estrangers no residents. Quan algú es "
+                "desdiu, un substitut (E) només entra si en aquell moment la zona té menys "
+                "estrangers adjudicats que el màxim; si el sostre és ple, només quan qui es "
+                "desdiu és un estranger. Si no pot entrar, es passa al següent i conserva el "
+                "seu lloc per a una baixa posterior."
+            )
+            if draw_logic.es_isard(especie):
+                st.caption(
+                    f"La columna `{draw_logic.COL_ISARD_VEDAT}` indica qui ha guanyat un "
+                    "isard en un vedat i s'ha d'incloure al CSV de prioritats de l'any vinent. "
+                    "Els substituts que acabin entrant en un vedat s'hi han de marcar «Sí» a mà."
+                )
 
     st.subheader("Resultats")
     capture_cols = [z["nom"].replace(" ", "_") for z in zones_clean]

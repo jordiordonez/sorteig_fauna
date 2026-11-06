@@ -4,10 +4,21 @@ import streamlit as st
 import unicodedata
 
 
-# Etiqueta dels sol·licitants estrangers no residents que queden fora del sorteig
-# de substitució perquè el sostre del 10% (art. 53.4) ja s'ha exhaurit. No és el
-# mateix que una cel·la buida, que vol dir «no inscrit a la zona».
-ETIQUETA_EXCLOS = "exclòs (sostre 10%)"
+# Marca dels substituts estrangers no residents (art. 53.4). Entren a l'ordre de
+# substitució per prioritat, com tothom, però un substitut marcat només pot
+# ocupar una plaça si en aquell moment el pla té menys estrangers adjudicats que
+# el màxim de la zona; amb el sostre ple, només quan es desdiu un estranger.
+SUFIX_SUBST_ESTRANGER = " (E)"
+
+# Art. 55.1.g: qui ha estat adjudicatari d'un isard en un vedat de caça no ho pot
+# ser l'any següent en cap vedat. La mateixa columna surt als resultats (qui ha
+# guanyat un vedat d'isard aquest any) i entra al CSV de prioritats l'any vinent.
+COL_ISARD_VEDAT = "Adjudicat_isard_vedat"
+ETIQUETA_EXCLOS_55G = "exclòs (art. 55.1.g)"
+
+
+def es_isard(especie) -> bool:
+    return strip_accents(str(especie or "")).strip().lower() == "isard"
 
 
 # ── UTILITIES ────────────────────────────────────────────────────────────────
@@ -222,29 +233,36 @@ def sorteig_individual(
     # substitució (art. 55.1.f): els mateixos criteris jeràrquics segueixen
     # vigents mentre el sostre parroquial no s'hagi esgotat, perquè un substitut
     # que entra ocupa una captura del vedat. El sostre d'estrangers (art. 53.4)
-    # compta igual les captures i les substitucions: un cop exhaurit, els
-    # estrangers no residents queden fora del sorteig i no reben ordre de
-    # substitució (la llicència es considera adjudicada, hi accedeixin o no).
+    # només limita les CAPTURES: a l'ordre de substitució els estrangers no
+    # residents hi tornen a entrar per prioritat, com tothom, i surten marcats
+    # perquè els tècnics sàpiguen que només poden entrar si el pla té menys
+    # estrangers adjudicats que el màxim (vegeu SUFIX_SUBST_ESTRANGER).
     assignats_parr = {p: 0 for p in cupos}
     guanyadors = []
     substituts = []
     estrangers = 0
     fase_captures = total_caps > 0
     while True:
+        limit = estranger_limit if fase_captures else math.inf
         idx = tria_candidat(
-            df, assignats_parr, cupos, parr_rank, estrangers, estranger_limit, rng
+            df, assignats_parr, cupos, parr_rank, estrangers, limit, rng
         )
         if idx is None:
+            if fase_captures:
+                # Captures sense candidats (p. ex. només queden estrangers i el
+                # sostre és ple): la resta va igualment a l'ordre de substitució.
+                fase_captures = False
+                continue
             break
         df.at[idx, "assigned"] = True
         if fase_captures:
             guanyadors.append(idx)
+            if df.at[idx, "Estranger"] == "si":
+                estrangers += 1
             if len(guanyadors) >= total_caps:
                 fase_captures = False
         else:
             substituts.append(idx)
-        if df.at[idx, "Estranger"] == "si":
-            estrangers += 1
         p = df.at[idx, "Parroquia"] if "Parroquia" in df.columns else None
         if p in assignats_parr:
             assignats_parr[p] += 1
@@ -305,6 +323,7 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
 
     captures_prev = {id_: 0 for id_ in resultat["ID"]}
     resum_sorteigs = []
+    resum_zones = []  # sostre d'estrangers i exclosos per l'art. 55.1.g, per zona
     traces_vedats = {}  # zona -> {ordre_parroquial, cupos, bloc_reservat}
 
     for zona in zones:
@@ -353,7 +372,34 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
         )
         if is_modalitat:
             part = part[part["Modalitat"].isin(["A", "B"])].copy()
+
+        # Art. 55.1.g: els adjudicataris d'un isard en vedat l'any anterior queden
+        # fora de tots els vedats d'isard (captures i substitució). Compten com a
+        # presentats sense captura en aquesta zona.
+        exclosos_55g = []
+        if es_vedat and es_isard(especie) and COL_ISARD_VEDAT in part.columns:
+            mask_55g = part[COL_ISARD_VEDAT].apply(normalitza_estranger) == "si"
+            exclosos_55g = part.loc[mask_55g, "ID"].tolist()
+            part = part[~mask_55g].copy()
         subset_ids = set(part["ID"])
+        estranger_de = dict(
+            zip(part["ID"], part["Estranger"].apply(normalitza_estranger) == "si")
+        )
+        maxim_estr = math.floor(estranger_pct / 100.0 * total_quant)
+
+        def _marca_exclosos_55g():
+            if exclosos_55g:
+                resultat[col_base] = resultat[col_base].astype("object")
+                resultat.loc[resultat["ID"].isin(exclosos_55g), col_base] = ETIQUETA_EXCLOS_55G
+
+        if part.empty:
+            # Tots els inscrits estaven exclosos per l'art. 55.1.g.
+            _marca_exclosos_55g()
+            resum_zones.append({
+                "Zona": sorteig, "Captures": total_quant, "Max_estrangers": maxim_estr,
+                "Estrangers_adjudicats": 0, "Exclosos_55_1_g": len(exclosos_55g),
+            })
+            continue
 
         ordre_substitucio = None  # el fixa el sorteig de vedat/individual
         if is_modalitat:
@@ -412,11 +458,10 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
             pending_ids = set(resultat.loc[mask_no_cap, "ID"])
             if ordre_substitucio is not None:
                 # Ordre de substitució ja sortejat amb els criteris de l'art. 55.1
-                # (prioritat i, si el sostre no s'ha esgotat, preferència parroquial),
-                # ja amb el sostre d'estrangers aplicat.
+                # (prioritat i, si el sostre no s'ha esgotat, preferència parroquial).
                 ids_ordenats = [i for i in ordre_substitucio if i in pending_ids]
             else:
-                # IS TCC: ordre per prioritat, amb el mateix sostre d'estrangers.
+                # IS TCC: ordre per prioritat; els estrangers hi entren com tothom.
                 tmp = part[part["ID"].isin(pending_ids)].copy()
                 tmp["rand"] = rng.random(len(tmp))
                 tmp.sort_values(
@@ -424,25 +469,15 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
                     ascending=[True, False, True],
                     inplace=True,
                 )
-                limit_estr = math.floor(estranger_pct / 100.0 * total_quant)
-                estr_acum = int(estr)
-                ids_ordenats = []
-                for id_val, es_estranger in zip(
-                    tmp["ID"], tmp["Estranger"].apply(normalitza_estranger) == "si"
-                ):
-                    if es_estranger:
-                        if estr_acum >= limit_estr:
-                            continue  # fora del sorteig: sostre exhaurit
-                        estr_acum += 1
-                    ids_ordenats.append(id_val)
+                ids_ordenats = tmp["ID"].tolist()
 
             # Assign substitute labels one by one to avoid dtype conflicts
             for i, id_val in enumerate(ids_ordenats):
-                resultat.loc[resultat["ID"] == id_val, col_base] = f"s{i+1}"
-            # Els inscrits sense captura ni ordre de substitució són els estrangers
-            # descartats pel sostre; es marquen per no confondre'ls amb «no inscrit».
-            for id_val in pending_ids - set(ids_ordenats):
-                resultat.loc[resultat["ID"] == id_val, col_base] = ETIQUETA_EXCLOS
+                etiqueta = f"s{i+1}"
+                if estranger_de.get(id_val):
+                    etiqueta += SUFIX_SUBST_ESTRANGER
+                resultat.loc[resultat["ID"] == id_val, col_base] = etiqueta
+        _marca_exclosos_55g()
         resultat[f"Tipus_{col_base}"] = resultat[f"tipus_{col_base}"]
 
         winners = asignats.loc[asignats[f"ordre_{col_base}"].notna(), "ID"]
@@ -469,6 +504,11 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
             tp = c.get("tipus") or []
             tip_label = "+".join(tp) if tp else "Indeterminat"
             previs_counts[tip_label] = previs_counts.get(tip_label, 0) + int(c.get("quantitat", 0))
+
+        resum_zones.append({
+            "Zona": sorteig, "Captures": total_quant, "Max_estrangers": maxim_estr,
+            "Estrangers_adjudicats": int(estr), "Exclosos_55_1_g": len(exclosos_55g),
+        })
 
         sol_licituds = sol_licituds_total
         resum_rows = []
@@ -530,8 +570,21 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
     # depenen d'informació que l'app no té (captura efectuada, cens complet).
     resultat["Nova_prioritat"] = resultat["te_capture"].map(lambda x: 4 if x else 2)
 
+    # Art. 55.1.g: qui ha guanyat una captura en qualsevol vedat d'isard aquest
+    # any. És la columna que cal posar al CSV de prioritats de l'any vinent. Els
+    # substituts que acabin entrant en un vedat s'hi han de marcar a mà.
+    vedat_cols = [
+        z["nom"].replace(" ", "_") for z in zones if z.get("tipus") == "Vedat"
+    ]
+    if es_isard(especie) and vedat_cols:
+        resultat[COL_ISARD_VEDAT] = resultat[vedat_cols].apply(
+            lambda r: "Sí" if r.apply(convert_capture_value).fillna(0).gt(0).any() else "No",
+            axis=1,
+        )
+
     resultat.drop(columns=["te_capture"], inplace=True)
     resultat.attrs["traces_vedats"] = traces_vedats
+    resultat.attrs["resum_zones"] = resum_zones
     return resultat, resum_sorteigs
 
 

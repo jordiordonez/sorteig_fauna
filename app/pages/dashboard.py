@@ -80,7 +80,11 @@ def is_inscrit(value) -> bool:
     s = str(value).strip()
     if s.isdigit():
         return True
-    return len(s) > 1 and s[0].lower() == "s" and s[1:].isdigit()
+    # Substituts (`s3`, i els estrangers `s3 (E)`) i exclosos (`exclòs (...)`).
+    if s.lower().startswith("exclòs"):
+        return True
+    num = s[1:].split(" ", 1)[0]
+    return len(s) > 1 and s[0].lower() == "s" and num.isdigit()
 
 
 def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
