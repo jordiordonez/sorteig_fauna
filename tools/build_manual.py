@@ -205,8 +205,10 @@ def construeix(html_cos, diagrames):
 
     # ── Títols: citació al marge + àncores + índex ───────────────────────────
     index = []
+    slugs = {}  # àncora a l'estil de GitHub (la que s'escriu a manual.md) -> id real
     for h in sopa.find_all(["h2", "h3"]):
         brut = h.get_text()
+        slug_md = re.sub(r"[^\w\- ]", "", brut.strip().lower()).replace(" ", "-")
         titol, citacio = classifica_citacio(brut)
         numero = None
         m = re.match(r"^(\d+(?:\.\d+)?)\.?\s+(.*)$", titol)
@@ -216,6 +218,7 @@ def construeix(html_cos, diagrames):
         ident = "s-" + re.sub(r"[^a-z0-9]+", "-",
                               (numero or titol).lower()).strip("-")
         h["id"] = ident
+        slugs[slug_md] = ident
         h.clear()
         if numero:
             marca = sopa.new_tag("span", attrs={"class": "num"})
@@ -230,6 +233,25 @@ def construeix(html_cos, diagrames):
             h.append(cita)
         if h.name == "h2":
             index.append((ident, numero, titol, citacio))
+
+    # ── Enllaços ─────────────────────────────────────────────────────────────
+    # Els enllaços interns de manual.md fan servir l'àncora de GitHub
+    # («#11-els-resultats-…»); es reescriuen a l'id que porta el títol («#s-11»).
+    # Els externs s'obren en una pestanya nova: dins de l'app el manual és en un
+    # iframe, i navegar-hi a dins carregaria una altra pàgina dins del marc.
+    ids = {t["id"] for t in sopa.find_all(attrs={"id": True})}
+    for a in sopa.find_all("a", href=True):
+        href = a["href"]
+        if href.startswith("#"):
+            desti = href[1:]
+            if desti not in ids:
+                if desti in slugs:
+                    a["href"] = "#" + slugs[desti]
+                else:
+                    print(f"⚠️  enllaç intern sense destí: {href}")
+        elif re.match(r"^(https?:|mailto:)", href):
+            a["target"] = "_blank"
+            a["rel"] = "noopener"
 
     # ── Taules: contenidor amb desplaçament propi ────────────────────────────
     for taula in sopa.find_all("table"):
@@ -507,6 +529,17 @@ pre code {{ background:none; padding:0; font-size:1em; }}
     var nou = fosc ? 'clar' : 'fosc';
     arrel.setAttribute('data-tema', nou);
     try {{ localStorage.setItem('tema-manual', nou); }} catch (e) {{}}
+  }});
+
+  // Enllaços interns: desplaçament dins del document. Dins de l'app el manual
+  // és un iframe sense URL pròpia, i deixar que el navegador hi segueixi «#…»
+  // carregaria l'aplicació sencera dins del marc.
+  document.addEventListener('click', function (ev) {{
+    var a = ev.target.closest && ev.target.closest('a[href^="#"]');
+    if (!a) return;
+    var desti = document.getElementById(decodeURIComponent(a.getAttribute('href').slice(1)));
+    ev.preventDefault();
+    if (desti) desti.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
   }});
 
   var enllacos = Array.prototype.slice.call(
