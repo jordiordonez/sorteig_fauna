@@ -253,7 +253,7 @@ def full(cos_html, index):
         + "</a></li>"
         for i, n, t, c in index
     )
-    articles = ["53.4", "54", "55.1", "55.2", "56", "57"]
+    articles = ["53.4", "54", "55.1", "55.1.g", "55.2", "56", "57"]
     fitxes = "".join(f"<li>art. {a}</li>" for a in articles)
 
     return f"""<!doctype html>
@@ -483,7 +483,7 @@ pre code {{ background:none; padding:0; font-size:1em; }}
   <main class="doc">
     <div class="llenc">
       <header class="masta">
-        <p class="masta__sobre">Reglament de caça · 4 de juny del 2025</p>
+        <p class="masta__sobre">Reglament de caça · 4 de juny del 2025 · modificat el 23 de setembre del 2026</p>
         <h1>Com es decideix<br>cada cas</h1>
         <p class="masta__sota">Manual de referència de l'aplicació de sortejos de
         llicències especials de caça. Tota casuística, amb l'article que la governa.</p>

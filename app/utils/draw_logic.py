@@ -604,7 +604,7 @@ def _round_sorteig(x, rng):
 
 def assignar_isards_sorteig_csv(df, total_captures, estranger_pct=10.0, seed=None):
     """Sorteig de l'isard en TCC amb modalitat de colla (A) i individual (B),
-    segons els art. 56 i 57 del Reglament de caça del 4-6-2025.
+    segons els art. 56 i 57 del Reglament de caça del 4-6-2025 (modificat el 23-9-2026).
 
     * Ràtio EXACTA = sol·licitants / captures (art. 56.2), sense arrodonir.
     * Captures de cada modalitat = arrodoniment al més proper de (n_mod / ràtio);

@@ -1,6 +1,7 @@
 """Proves de la lògica de sorteig contra els fitxers de `proves/`.
 
-Comproven el comportament EXIGIT pel Reglament de caça del 4-6-2025 després dels
+Comproven el comportament EXIGIT pel Reglament de caça del 4-6-2025 (modificat el
+23-9-2026: art. 55.1.g) després dels
 afinaments de juliol del 2026 (vegeu `propostes.md`). Executables amb pytest o
 directament: ``python tests/test_sorteig.py``.
 """
