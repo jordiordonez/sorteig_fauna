@@ -75,7 +75,10 @@ l'art. 55.1), i **Llei 18/2024, del 19 de desembre, de caça**.
 > **no s'aplica l'exclusió de l'art. 55.1.g**, i l'aplicació en mostra un avís.
 
 **2. CSV d'inscrits** — `ID` i `Codi_Sorteig`, on el codi ha de coincidir **exactament**
-amb el nom de la zona configurada.
+amb el nom de la zona configurada. Pot portar també inscripcions d'altres espècies: només compten
+les de les zones de l'espècie que se sorteja. A les zones amb **modalitat A/B**
+(`IS TCC`) s'hi inscriu **tothom qui té `Modalitat`**: les colles han de tenir
+inscrits com a mínim l'efectiu mínim (apartat 7.1).
 
 **3. Configuració de zones** — per a cada zona: tipus, tipus de captura i quantitats,
 percentatge d'estrangers, i en els vedats el percentatge reservat als locals i el

@@ -344,8 +344,11 @@ if st.session_state.get("run_draw"):
         )
 
     # ── Avís d'IDs presents només en un CSV ───────────────────────────────
+    # Només compten les inscripcions a zones d'aquesta espècie: un CSV d'inscrits
+    # pot portar també les d'altres espècies, i el sorteig no les fa servir.
+    noms_zones = {z["nom"] for z in zones_clean}
     ids_prio = set(df1["ID"].astype(str))
-    ids_ins = set(df2["ID"].astype(str))
+    ids_ins = set(df2.loc[df2["Codi_Sorteig"].isin(noms_zones), "ID"].astype(str))
     missing_in_ins = ids_prio - ids_ins
     if needs_modalitat and "Modalitat" in df1.columns:
         ab_ids = set(df1[df1["Modalitat"].isin(["A", "B"])]["ID"].astype(str))
