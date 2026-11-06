@@ -966,10 +966,20 @@ dades + mateixa configuració + mateixa llavor = mateix resultat, fins a l'últi
 substitut. Sense llavor, cada execució dóna un resultat diferent.</p>
 <p><strong>Recomanació:</strong> fixar sempre una llavor i <strong>deixar-la escrita a l'acta</strong>. Permet
 tornar a generar el sorteig sencer si més endavant cal comprovar-lo o reconstruir-lo.</p>
-<p>L'aplicació es valida amb <strong>24 proves automàtiques</strong> que comproven, contra fitxers
-reals i casos construïts, la jerarquia de prioritats, el càlcul dels cupos, la
-preferència parroquial com a sostre, l'ordre de substitució, els dos sostres, els
-substituts estrangers marcats, l'exclusió de l'art. 55.1.g i la reproductibilitat.</p>
+<p>L'aplicació es valida amb <strong>dues bateries de proves automàtiques</strong>:</p>
+<ul>
+<li><strong>68 proves</strong> en total. 24 comproven el motor contra els fitxers de prova del Govern
+(la jerarquia de prioritats, els cupos, la preferència parroquial, l'ordre de
+substitució, els dos sostres i la reproductibilitat).</li>
+<li>Les altres 44, amb dades construïdes, comproven <strong>cada regla d'aquest manual</strong> per
+separat i, a més, <strong>60 sortejos aleatoris</strong> on es verifica el que ha de ser cert
+sempre: mai més captures que les ofertes ni estrangers per sobre del màxim, tothom
+amb una sola posició i numeració sense forats, <code>(E)</code> només als estrangers, cap exclòs
+per l'art. 55.1.g dins d'un vedat, la prioritat mai no millora al llarg de la llista, i
+la prioritat de sortida i la columna <code>Adjudicat_isard_vedat</code> coherents.</li>
+<li>També comproven que <strong>els fitxers d'exemple</strong> que es descarreguen des de l'app passen
+totes les validacions i es poden sortejar tal com són.</li>
+</ul>
 <hr/>
 <h2 id="s-15"><span class="num">15</span><span class="titol">Què no fa l'aplicació</span></h2>
 <p>Perquè quedi clar el límit del que hi ha automatitzat:</p>

@@ -49,7 +49,8 @@ This creates:
 ## 5. Copy Required Files
 To make sure the app works correctly, copy these files into the `dist` folder:
     - isard.csv
-    - altres.csv
+    - cabirol.csv
+    - muflo.csv
     - sorteig.csv
     - manual.html   <-- required: the in-app manual page reads this file
     - (Any other static resources your app needs)
@@ -76,7 +77,8 @@ If you want a custom icon:
        pyinstaller --onefile --icon=icon.ico run_app.py
 3. Copy Files
 	copy isard.csv dist\run_app\
-	copy altres.csv dist\run_app\
+	copy cabirol.csv dist\run_app\
+	copy muflo.csv dist\run_app\
 	copy sorteig.csv dist\run_app\
 ---
 

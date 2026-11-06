@@ -263,13 +263,19 @@ st.page_link(
 )
 
 st.markdown("💡 Pots descarregar exemples de fitxers aquí:")
-ex1, ex2, ex3 = st.columns(3)
+ex1, ex2, ex3, ex4 = st.columns(4)
 with open("isard.csv", "rb") as f1:
-    ex1.download_button("📥 Exemple Isard", f1, file_name="isard.csv", mime="text/csv")
-with open("altres.csv", "rb") as f2:
-    ex2.download_button("📥 Altres espècies", f2, file_name="altres.csv", mime="text/csv")
-with open("sorteig.csv", "rb") as f3:
-    ex3.download_button("📥 Exemple Inscripcions", f3, file_name="sorteig.csv", mime="text/csv")
+    ex1.download_button("📥 Prioritats Isard", f1, file_name="isard.csv", mime="text/csv")
+with open("cabirol.csv", "rb") as f2:
+    ex2.download_button("📥 Prioritats Cabirol", f2, file_name="cabirol.csv", mime="text/csv")
+with open("muflo.csv", "rb") as f3:
+    ex3.download_button("📥 Prioritats Mufló", f3, file_name="muflo.csv", mime="text/csv")
+with open("sorteig.csv", "rb") as f4:
+    ex4.download_button("📥 Inscripcions (totes)", f4, file_name="sorteig.csv", mime="text/csv")
+st.caption(
+    "El fitxer d'inscripcions serveix per a les tres espècies: el sorteig només fa "
+    "servir les files de les zones de l'espècie triada."
+)
 
 # ── Selecció d'espècie ────────────────────────────────────────────────────────
 sp1, sp2 = st.columns([2, 2])

@@ -11,9 +11,10 @@ This repository contains a [Streamlit](https://streamlit.io) application used to
   - `app/utils/draw_logic.py` – the draw engine.
 - `manual.md` – **the draw rules**, in Catalan: every casuistry with its article, diagrams and edge cases.
 - `manual.html` – the same manual as a self-contained page (diagrams inlined, no external assets), served by the app's *Manual* tab and readable offline. Regenerate with `python tools/build_manual.py` after editing `manual.md`; it needs `mistune`, `beautifulsoup4` and `npx @mermaid-js/mermaid-cli`.
-- `tests/test_sorteig.py` – test suite for the draw engine (run with `python tests/test_sorteig.py` or `pytest`). Tests that need real data skip automatically when it is absent.
+- `tests/test_sorteig.py` – test suite for the draw engine against the Government's test files (run with `python tests/test_sorteig.py` or `pytest`). Tests that need real data skip automatically when it is absent.
+- `tests/test_logiques.py` – second, self-contained battery with synthetic data: one test per rule in `manual.md`, invariants checked over 60 random draws, and the example files (`python tests/test_logiques.py` or `pytest`).
 - `run_app.py` – Entry point used when running locally or when packaging with PyInstaller.
-- `altres.csv`, `isard.csv`, `sorteig.csv` – Example CSV files used as templates or sample data.
+- `isard.csv`, `cabirol.csv`, `muflo.csv` – example **priorities CSV** for each species (synthetic data). `sorteig.csv` – example **entries CSV** shared by the three species (each draw only uses the rows of its own zones). They run as downloaded, with no warnings.
 - `build_exe.bat` – Convenience script for building a Windows executable.
 - `requirements.txt` – Python dependencies for the application.
 
@@ -91,7 +92,7 @@ The results table gives, per `ID` and per zone, the position at which a capture 
 
 ## Building a Windows executable
 
-To create the Windows app, install Python 3.10+, install the project dependencies and PyInstaller, run `pyinstaller --onedir --add-data "app;app" --collect-all streamlit run_app.py`, then copy `isard.csv`, `altres.csv` and `sorteig.csv` into the generated `dist` folder before launching `dist/run_app.exe`.  See `README.txt` for the detailed build steps.
+To create the Windows app, install Python 3.10+, install the project dependencies and PyInstaller, run `pyinstaller --onedir --add-data "app;app" --collect-all streamlit run_app.py`, then copy `isard.csv`, `cabirol.csv`, `muflo.csv` and `sorteig.csv` into the generated `dist` folder before launching `dist/run_app.exe`.  See `README.txt` for the detailed build steps.
 
 ## License
 

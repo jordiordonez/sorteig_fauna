@@ -609,10 +609,19 @@ substitut. Sense llavor, cada execució dóna un resultat diferent.
 **Recomanació:** fixar sempre una llavor i **deixar-la escrita a l'acta**. Permet
 tornar a generar el sorteig sencer si més endavant cal comprovar-lo o reconstruir-lo.
 
-L'aplicació es valida amb **24 proves automàtiques** que comproven, contra fitxers
-reals i casos construïts, la jerarquia de prioritats, el càlcul dels cupos, la
-preferència parroquial com a sostre, l'ordre de substitució, els dos sostres, els
-substituts estrangers marcats, l'exclusió de l'art. 55.1.g i la reproductibilitat.
+L'aplicació es valida amb **dues bateries de proves automàtiques**:
+
+- **68 proves** en total. 24 comproven el motor contra els fitxers de prova del Govern
+  (la jerarquia de prioritats, els cupos, la preferència parroquial, l'ordre de
+  substitució, els dos sostres i la reproductibilitat).
+- Les altres 44, amb dades construïdes, comproven **cada regla d'aquest manual** per
+  separat i, a més, **60 sortejos aleatoris** on es verifica el que ha de ser cert
+  sempre: mai més captures que les ofertes ni estrangers per sobre del màxim, tothom
+  amb una sola posició i numeració sense forats, `(E)` només als estrangers, cap exclòs
+  per l'art. 55.1.g dins d'un vedat, la prioritat mai no millora al llarg de la llista, i
+  la prioritat de sortida i la columna `Adjudicat_isard_vedat` coherents.
+- També comproven que **els fitxers d'exemple** que es descarreguen des de l'app passen
+  totes les validacions i es poden sortejar tal com són.
 
 ---
 
