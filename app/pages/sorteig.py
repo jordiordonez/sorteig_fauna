@@ -5,7 +5,12 @@ from utils import draw_logic, config
 @st.cache_data
 def load_csv(file):
     import pandas as pd
-    return pd.read_csv(file, sep=";")
+    # UTF-8 (amb BOM o sense) i, si no ho és, Windows-1252: és com desa l'Excel.
+    try:
+        return pd.read_csv(file, sep=";", encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        file.seek(0)
+        return pd.read_csv(file, sep=";", encoding="cp1252")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -250,7 +255,7 @@ with st.expander("Format dels CSV"):
 | `Estranger` | sempre (Sí/No) |
 | `Parroquia` | si alguna zona és **Vedat** |
 | `Modalitat` (`A`/`B`) i `Colla_ID` | si alguna zona té **modalitat A/B** |
-| `Adjudicat_isard_vedat` | **Isard** amb vedats (Sí/No): adjudicataris d'un isard en vedat l'any anterior, que en queden exclosos aquest any (art. 55.1.g). És la columna homònima dels resultats de l'any passat |
+| `Adjudicat_isard_vedat` | **Isard** amb vedats (Sí/No): adjudicataris d'un isard en vedat l'any anterior, que en queden exclosos aquest any (art. 55.1.g). És la columna `Adjudicat_isard_vedat_any_actual` dels resultats de l'any passat; s'accepta amb qualsevol dels dos noms |
 
 **CSV d'inscrits** — columnes `ID` i `Codi_Sorteig` (el codi ha de coincidir amb el **nom de la zona**).
         """
@@ -341,7 +346,7 @@ if st.session_state.get("run_draw"):
     if (
         draw_logic.es_isard(especie)
         and needs_parroquia
-        and draw_logic.COL_ISARD_VEDAT not in df1.columns
+        and draw_logic.columna_isard_vedat_entrada(df1) is None
     ):
         st.warning(
             f"El CSV de prioritats no té la columna `{draw_logic.COL_ISARD_VEDAT}`: "
@@ -487,10 +492,18 @@ if st.session_state.get("run_draw"):
             )
             if draw_logic.es_isard(especie):
                 st.caption(
-                    f"La columna `{draw_logic.COL_ISARD_VEDAT}` indica qui ha guanyat un "
-                    "isard en un vedat i s'ha d'incloure al CSV de prioritats de l'any vinent. "
-                    "Els substituts que acabin entrant en un vedat s'hi han de marcar «Sí» a mà."
+                    f"La columna `{draw_logic.COL_ISARD_VEDAT_ACTUAL}` indica qui ha guanyat un "
+                    "isard en un vedat aquest any i s'ha d'incloure al CSV de prioritats de l'any "
+                    f"vinent (com a `{draw_logic.COL_ISARD_VEDAT}` o amb el mateix nom). Els "
+                    "substituts que acabin entrant en un vedat s'hi han de marcar «Sí» a mà. "
+                    f"La columna `{draw_logic.COL_ISARD_VEDAT_PASSAT}` mostra qui en queda "
+                    "exclòs aquest any, s'hagi inscrit o no a algun vedat."
                 )
+            st.caption(
+                f"Les columnes `{draw_logic.PREFIX_SUBST_DEFINITIVA}…` reordenen els substituts "
+                "de cada sorteig: qui ja ha obtingut una captura en un altre sorteig passa al "
+                "final, mantenint l'ordre. Són les llistes que cal fer servir per cobrir baixes."
+            )
 
     st.subheader("Resultats")
     capture_cols = [z["nom"].replace(" ", "_") for z in zones_clean]
@@ -501,7 +514,8 @@ if st.session_state.get("run_draw"):
 
     st.download_button(
         "Descarregar CSV",
-        resultat.to_csv(index=False).encode("utf-8"),
+        # `;` i UTF-8 amb BOM: l'Excel l'obre en columnes i amb els accents bé.
+        resultat.to_csv(index=False, sep=";").encode("utf-8-sig"),
         file_name="resultats.csv",
     )
 

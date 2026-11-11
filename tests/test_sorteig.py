@@ -432,9 +432,9 @@ def test_55g_columna_de_sortida_i_prioritat():
     r = r.set_index("ID")
     for i in r.index:
         guanya_vedat = any(pd.notna(pd.to_numeric(r.at[i, z], errors="coerce")) for z in ["VA", "VB"])
-        assert r.at[i, d.COL_ISARD_VEDAT] == ("Sí" if guanya_vedat else "No")
+        assert r.at[i, d.COL_ISARD_VEDAT_ACTUAL] == ("Sí" if guanya_vedat else "No")
     # L'exclòs no pot guanyar cap vedat, així que surt «No»: l'any vinent queda lliure.
-    assert r.at[3, d.COL_ISARD_VEDAT] == "No"
+    assert r.at[3, d.COL_ISARD_VEDAT_ACTUAL] == "No"
     # Prioritat habitual: si no treu cap captura, P2 i un any més sense captura.
     if pd.isna(pd.to_numeric(r.at[3, "TCC"], errors="coerce")):
         assert r.at[3, "Nova_prioritat"] == 2
@@ -445,19 +445,19 @@ def test_55g_tots_exclosos_no_penja():
     p, ins, zones = _isard_sintetic(flag_vedat=set(range(1, 13)))
     r, _ = d.processar_sorteigs(p, ins, zones, "Isard", seed=1)
     assert (r["VA"] == d.ETIQUETA_EXCLOS_55G).all()
-    assert (r[d.COL_ISARD_VEDAT] == "No").all()
+    assert (r[d.COL_ISARD_VEDAT_ACTUAL] == "No").all()
 
 
 def test_55g_nomes_isard_i_columna_opcional():
     # Sense la columna d'entrada: sorteig normal, però la de sortida hi és.
     p, ins, zones = _isard_sintetic()
     r, _ = d.processar_sorteigs(p, ins, zones, "Isard", seed=1)
-    assert d.COL_ISARD_VEDAT in r.columns
+    assert d.COL_ISARD_VEDAT_ACTUAL in r.columns
     assert not (r[["VA", "VB"]] == d.ETIQUETA_EXCLOS_55G).any().any()
     # Altres espècies: ni exclusió ni columna.
     p, ins, zones = _isard_sintetic(flag_vedat={1, 2})
     r, _ = d.processar_sorteigs(p, ins, zones, "Mufló", seed=1)
-    assert d.COL_ISARD_VEDAT not in r.columns
+    assert d.COL_ISARD_VEDAT_ACTUAL not in r.columns
     assert not (r[["VA", "VB"]] == d.ETIQUETA_EXCLOS_55G).any().any()
 
 

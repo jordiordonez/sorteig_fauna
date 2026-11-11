@@ -340,20 +340,20 @@ def test_55g_cicle_de_tres_anys():
         r, _ = run(p, ins, zs, "Isard", seed=any_)
         historia.append(r.set_index("ID"))
         p = r[["ID", "Nova_prioritat", "Nou_Anys_sense_captura", "Estranger",
-               "Parroquia", d.COL_ISARD_VEDAT]].rename(
+               "Parroquia", d.COL_ISARD_VEDAT_ACTUAL]].rename(
             columns={"Nova_prioritat": "Prioritat", "Nou_Anys_sense_captura": "anys_sense_captura"})
     any0, any1, any2 = historia
     guanyadors_v0 = [i for i in any0.index if num(any0.at[i, "IS_VA"]) is not None]
-    assert guanyadors_v0 and all(any0.at[i, d.COL_ISARD_VEDAT] == "Sí" for i in guanyadors_v0)
+    assert guanyadors_v0 and all(any0.at[i, d.COL_ISARD_VEDAT_ACTUAL] == "Sí" for i in guanyadors_v0)
     for i in guanyadors_v0:
         assert any1.at[i, "IS_VA"] == d.ETIQUETA_EXCLOS_55G      # N+1: exclòs
-        assert any1.at[i, d.COL_ISARD_VEDAT] == "No"             # ...i surt lliure
+        assert any1.at[i, d.COL_ISARD_VEDAT_ACTUAL] == "No"             # ...i surt lliure
         assert any2.at[i, "IS_VA"] != d.ETIQUETA_EXCLOS_55G      # N+2: hi torna a optar
     # Ningú guanya un vedat dos anys seguits.
     for a, b in [(any0, any1), (any1, any2)]:
         for i in a.index:
-            if a.at[i, d.COL_ISARD_VEDAT] == "Sí":
-                assert b.at[i, d.COL_ISARD_VEDAT] == "No"
+            if a.at[i, d.COL_ISARD_VEDAT_ACTUAL] == "Sí":
+                assert b.at[i, d.COL_ISARD_VEDAT_ACTUAL] == "No"
 
 
 def test_55g_no_afecta_el_tcc_amb_modalitat():
@@ -387,7 +387,7 @@ def test_55g_substituts_de_vedat_surten_amb_no():
     ri = r.set_index("ID")
     for i in ri.index:
         esperat = "Sí" if num(ri.at[i, "IS_VA"]) is not None else "No"
-        assert ri.at[i, d.COL_ISARD_VEDAT] == esperat
+        assert ri.at[i, d.COL_ISARD_VEDAT_ACTUAL] == esperat
 
 
 def test_55g_nomes_isard():
@@ -396,7 +396,7 @@ def test_55g_nomes_isard():
     for esp in ["Mufló", "Cabirol", "Altres"]:
         r, _ = run(p, inscrits([("A", "MUF V")]), zs, esp)
         assert num(r.set_index("ID").at["A", "MUF_V"]) == 1
-        assert d.COL_ISARD_VEDAT not in r.columns
+        assert d.COL_ISARD_VEDAT_ACTUAL not in r.columns
     assert d.es_isard("isard") and d.es_isard(" ISARD ") and not d.es_isard("Isards")
 
 
@@ -683,7 +683,7 @@ def _comprova_invariants(p, ins, zones, seed):
         assert ri.at[i, "Nova_prioritat"] == (4 if te else 2)
         assert ri.at[i, "Nou_Anys_sense_captura"] == (0 if te else pi.at[i, "anys_sense_captura"] + 1)
         guanya_v = any(num(ri.at[i, vc]) is not None for vc in vcols)
-        assert ri.at[i, d.COL_ISARD_VEDAT] == ("Sí" if guanya_v else "No")
+        assert ri.at[i, d.COL_ISARD_VEDAT_ACTUAL] == ("Sí" if guanya_v else "No")
         if es_estr(pi.at[i, d.COL_ISARD_VEDAT]):
             assert not guanya_v, f"seed={seed}: {i} guanya un vedat dos anys seguits"
     # Reproductibilitat.
@@ -761,6 +761,110 @@ def test_exemples_es_sortegen_i_exerciten_les_regles():
         vist_g += int((r[cols] == d.ETIQUETA_EXCLOS_55G).sum().sum())
     assert vist_e > 0, "els exemples haurien de tenir substituts estrangers"
     assert vist_g > 0, "l'exemple d'isard hauria d'exercitar l'art. 55.1.g"
+
+
+# ── ART. 55.1.g: COLUMNA DE L'ANY PASSAT ─────────────────────────────────────
+
+def test_55g_columna_any_passat_inclou_no_inscrits_a_vedats():
+    # B només s'inscriu al TCC: no surt «exclòs» enlloc, però s'ha de veure que
+    # l'any passat va guanyar un vedat.
+    p = caçadors([{"ID": "A", "Parroquia": "Encamp", d.COL_ISARD_VEDAT: "Sí"},
+                  {"ID": "B", "Parroquia": "Encamp", d.COL_ISARD_VEDAT: "si"},
+                  {"ID": "C", "Parroquia": "Encamp", d.COL_ISARD_VEDAT: "No"}])
+    ins = inscrits([("A", "IS VA"), ("C", "IS VA"), ("A", "IS TCC"), ("B", "IS TCC"),
+                    ("C", "IS TCC")])
+    r, _ = run(p, ins, _isard_zones(), "Isard")
+    ri = r.set_index("ID")
+    assert list(ri[d.COL_ISARD_VEDAT_PASSAT]) == ["Sí", "Sí", "No"]
+    assert ri.at["A", "IS_VA"] == d.ETIQUETA_EXCLOS_55G
+    assert d.COL_ISARD_VEDAT_ACTUAL in r.columns and d.COL_ISARD_VEDAT not in r.columns
+
+
+def test_55g_accepta_la_columna_any_actual_com_a_entrada():
+    p = caçadors([{"ID": "A", "Parroquia": "Encamp", d.COL_ISARD_VEDAT_ACTUAL: "Sí"},
+                  {"ID": "B", "Parroquia": "Encamp", d.COL_ISARD_VEDAT_ACTUAL: "No"}])
+    r, _ = run(p, inscrits([("A", "IS VA"), ("B", "IS VA")]), _isard_zones(), "Isard")
+    ri = r.set_index("ID")
+    assert ri.at["A", "IS_VA"] == d.ETIQUETA_EXCLOS_55G
+    assert ri.at["A", d.COL_ISARD_VEDAT_PASSAT] == "Sí"
+
+
+def test_55g_sense_columna_entrada_no_hi_ha_columna_any_passat():
+    p = caçadors([{"ID": "A", "Parroquia": "Encamp"}])
+    r, _ = run(p, inscrits([("A", "IS VA")]), _isard_zones(), "Isard")
+    assert d.COL_ISARD_VEDAT_PASSAT not in r.columns
+
+
+# ── LLISTA DE SUBSTITUCIÓ DEFINITIVA ─────────────────────────────────────────
+
+def _comprova_llista_definitiva(r, zones):
+    cols = [col(z) for z in zones]
+    te_cap = r[cols].apply(lambda c: c.map(num)).notna().any(axis=1)
+    for c in cols:
+        dc = d.PREFIX_SUBST_DEFINITIVA + c
+        assert dc in r.columns
+        assert list(r.columns).index(dc) == list(r.columns).index(f"Tipus_{c}") + 1
+        subs = r[r[c].map(es_subst)].copy()
+        # Només els substituts en tenen; la resta, buit.
+        assert r.loc[~r[c].map(es_subst), dc].isna().all()
+        if subs.empty:
+            continue
+        subs["orig"] = subs[c].map(n_subst)
+        subs["nou"] = subs[dc].map(n_subst)
+        assert sorted(subs["nou"]) == list(range(1, len(subs) + 1))
+        # La marca (E) es conserva.
+        assert (subs[c].str.endswith("(E)") == subs[dc].str.endswith("(E)")).all()
+        subs = subs.sort_values("nou")
+        cap = te_cap[subs.index].tolist()
+        # Primer els que no tenen cap captura, després els que sí...
+        assert cap == sorted(cap)
+        # ...i dins de cada grup, l'ordre original.
+        for grup in (False, True):
+            o = subs.loc[[x == grup for x in cap], "orig"].tolist()
+            assert o == sorted(o)
+
+
+def test_llista_definitiva_passa_al_final_qui_ja_te_captura():
+    # Cas de l'Hector: H1 és s1 al primer sorteig (VA) i guanya el segon (VB),
+    # perquè H0, que ha guanyat VA, hi baixa a P5.
+    p = caçadors([{"ID": f"H{i}", "Parroquia": "Encamp", "anys_sense_captura": 10 - i}
+                  for i in range(4)])
+    zs = [vedat("IS VA", 1, {"Encamp": 100}), vedat("IS VB", 1, {"Encamp": 100})]
+    ins = inscrits([(i, z["nom"]) for z in zs for i in p.ID])
+    r, _ = run(p, ins, zs, "Isard")
+    ri = r.set_index("ID")
+    assert num(ri.at["H0", "IS_VA"]) == 1 and ri.at["H1", "IS_VA"] == "s1"
+    assert num(ri.at["H1", "IS_VB"]) == 1
+    dc = d.PREFIX_SUBST_DEFINITIVA + "IS_VA"
+    assert ri.at["H2", dc] == "s1" and ri.at["H3", dc] == "s2" and ri.at["H1", dc] == "s3"
+    # A VB, H0 (ja adjudicatari de VA) era el darrer i hi continua.
+    dcb = d.PREFIX_SUBST_DEFINITIVA + "IS_VB"
+    assert ri.at["H0", "IS_VB"] == "s3" and ri.at["H0", dcb] == "s3"
+    _comprova_llista_definitiva(r, zs)
+
+
+def test_llista_definitiva_invariants_aleatoris():
+    rng = np.random.RandomState(7)
+    for seed in range(15):
+        n = 30
+        rows = [{"ID": f"H{i}", "Prioritat": int(rng.choice([1, 2, 3, 4])),
+                 "anys_sense_captura": int(rng.randint(0, 6)),
+                 "Estranger": "Sí" if rng.rand() < 0.3 else "No",
+                 "Parroquia": str(rng.choice(["Encamp", "Canillo", "Ordino"]))}
+                for i in range(n)]
+        p = caçadors(rows)
+        zs = [tcc("IS TCC", 4), vedat("IS VA", 3, {"Encamp": 50, "Canillo": 50}),
+              vedat("IS VB", 2, {"Ordino": 100})]
+        ins = inscrits([(i, z["nom"]) for z in zs for i in p.ID if rng.rand() < 0.6])
+        r, _ = run(p, ins, zs, "Isard", seed=seed)
+        _comprova_llista_definitiva(r, zs)
+
+
+def test_flag_si_desat_malament_per_l_excel():
+    for v in ["SÃ\xad", "sÃ\xad", "Sí", "si"]:
+        assert d.normalitza_estranger(v) == "si", v
+    for v in ["No", "", None, float("nan")]:
+        assert d.normalitza_estranger(v) == "no", v
 
 
 if __name__ == "__main__":

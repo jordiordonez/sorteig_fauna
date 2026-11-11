@@ -13,8 +13,37 @@ SUFIX_SUBST_ESTRANGER = " (E)"
 # Art. 55.1.g: qui ha estat adjudicatari d'un isard en un vedat de caça no ho pot
 # ser l'any següent en cap vedat. La mateixa columna surt als resultats (qui ha
 # guanyat un vedat d'isard aquest any) i entra al CSV de prioritats l'any vinent.
+# Al CSV de prioritats, la columna d'entrada és `Adjudicat_isard_vedat`; també
+# s'accepta `Adjudicat_isard_vedat_any_actual`, perquè la columna dels resultats
+# d'un any es pugui fer servir tal qual com a entrada de l'any següent.
+# Als resultats surten dues columnes: la de l'any passat (la d'entrada, per veure
+# qui en queda exclòs encara que no s'hagi inscrit a cap vedat) i la de l'any actual.
 COL_ISARD_VEDAT = "Adjudicat_isard_vedat"
+COL_ISARD_VEDAT_ACTUAL = "Adjudicat_isard_vedat_any_actual"
+COL_ISARD_VEDAT_PASSAT = "Adjudicat_isard_vedat_any_passat"
 ETIQUETA_EXCLOS_55G = "exclòs (art. 55.1.g)"
+
+# Llista de substitució definitiva: el mateix ordre de substitució de cada
+# sorteig, però amb els que ja han obtingut una captura en un altre sorteig
+# d'aquesta tanda passats al final (mantenint-ne l'ordre relatiu).
+PREFIX_SUBST_DEFINITIVA = "Llista_substitució_definitiva_"
+
+
+def columna_isard_vedat_entrada(df):
+    """Nom de la columna de l'art. 55.1.g al CSV de prioritats, o None."""
+    for col in (COL_ISARD_VEDAT, COL_ISARD_VEDAT_ACTUAL):
+        if col in df.columns:
+            return col
+    return None
+
+
+def _num_substitut(val):
+    """Posició d'una etiqueta de substitut (`s3`, `s3 (E)`) o None."""
+    s = str(val).strip()
+    if len(s) < 2 or s[0] != "s":
+        return None
+    num = s[1:].split(" ", 1)[0]
+    return int(num) if num.isdigit() else None
 
 
 def es_isard(especie) -> bool:
@@ -54,7 +83,17 @@ def normalitza_parroquia(valor):
     return None
 
 
+def _repara_mojibake(text: str) -> str:
+    """«SÃ­» → «Sí»: text UTF-8 que algú ha obert i desat com a Windows-1252."""
+    try:
+        return text.encode("cp1252").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text
+
+
 def normalitza_estranger(valor) -> str:
+    if isinstance(valor, str):
+        valor = _repara_mojibake(valor.strip())
     if isinstance(valor, str) and valor.strip().lower() in {
         "si",
         "sí",
@@ -321,6 +360,17 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
 
     resultat = base[cols].copy()
 
+    # Art. 55.1.g: la columna d'entrada pot venir amb el nom dels resultats de
+    # l'any passat (`..._any_actual`); internament es fa servir COL_ISARD_VEDAT.
+    col_55g = columna_isard_vedat_entrada(df1) if es_isard(especie) else None
+    if col_55g and col_55g != COL_ISARD_VEDAT:
+        df1 = df1.rename(columns={col_55g: COL_ISARD_VEDAT})
+    if col_55g:
+        flag_passat = dict(zip(df1["ID"], df1[COL_ISARD_VEDAT]))
+        resultat[COL_ISARD_VEDAT_PASSAT] = resultat["ID"].map(
+            lambda i: "Sí" if normalitza_estranger(flag_passat.get(i)) == "si" else "No"
+        )
+
     captures_prev = {id_: 0 for id_ in resultat["ID"]}
     resum_sorteigs = []
     resum_zones = []  # sostre d'estrangers i exclosos per l'art. 55.1.g, per zona
@@ -577,9 +627,31 @@ def processar_sorteigs(df1, df2, zones, especie, seed):
         z["nom"].replace(" ", "_") for z in zones if z.get("tipus") == "Vedat"
     ]
     if es_isard(especie) and vedat_cols:
-        resultat[COL_ISARD_VEDAT] = resultat[vedat_cols].apply(
+        resultat[COL_ISARD_VEDAT_ACTUAL] = resultat[vedat_cols].apply(
             lambda r: "Sí" if r.apply(convert_capture_value).fillna(0).gt(0).any() else "No",
             axis=1,
+        )
+
+    # Llista de substitució definitiva de cada sorteig: es manté l'ordre de
+    # substitució, però qui ja té una captura en un altre sorteig passa al final.
+    # Es posa al costat de les columnes del sorteig corresponent.
+    for col in capture_cols:
+        if col not in resultat.columns:
+            continue
+        nova = pd.Series([pd.NA] * len(resultat), index=resultat.index, dtype="object")
+        pos = resultat[col].map(_num_substitut)
+        subs = resultat.loc[pos.notna()].assign(_pos=pos[pos.notna()])
+        if not subs.empty:
+            subs = subs.sort_values("_pos")
+            ordre = list(subs.index[~subs["te_capture"]]) + list(subs.index[subs["te_capture"]])
+            for i, idx in enumerate(ordre):
+                etiqueta = f"s{i + 1}"
+                if str(resultat.at[idx, col]).endswith(SUFIX_SUBST_ESTRANGER):
+                    etiqueta += SUFIX_SUBST_ESTRANGER
+                nova.at[idx] = etiqueta
+        darrera = f"Tipus_{col}" if f"Tipus_{col}" in resultat.columns else col
+        resultat.insert(
+            resultat.columns.get_loc(darrera) + 1, f"{PREFIX_SUBST_DEFINITIVA}{col}", nova
         )
 
     resultat.drop(columns=["te_capture"], inplace=True)

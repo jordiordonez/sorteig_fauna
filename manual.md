@@ -70,9 +70,11 @@ l'art. 55.1), i **Llei 18/2024, del 19 de desembre, de caça**.
 | `Modalitat`, `Colla_ID` | si hi ha **modalitat A/B** | `A` o `B`; identificador de colla |
 | `Adjudicat_isard_vedat` | **isard**, si hi ha cap vedat (opcional) | `Sí` / `No`: va ser adjudicatari d'un isard en un vedat l'any anterior (apartat 5.6) |
 
-> La columna `Adjudicat_isard_vedat` **es copia tal qual dels resultats de l'any
-> anterior**, que ja la porten. Si falta, el sorteig s'executa igualment però
-> **no s'aplica l'exclusió de l'art. 55.1.g**, i l'aplicació en mostra un avís.
+> La columna `Adjudicat_isard_vedat` **es copia dels resultats de l'any anterior**,
+> on surt amb el nom `Adjudicat_isard_vedat_any_actual`. Es pot deixar amb aquest
+> nom o canviar-lo per `Adjudicat_isard_vedat`: l'aplicació accepta els dos. Si
+> falta, el sorteig s'executa igualment però **no s'aplica l'exclusió de
+> l'art. 55.1.g**, i l'aplicació en mostra un avís.
 
 **2. CSV d'inscrits** — `ID` i `Codi_Sorteig`, on el codi ha de coincidir **exactament**
 amb el nom de la zona configurada. Pot portar també inscripcions d'altres espècies: només compten
@@ -88,7 +90,7 @@ repartiment parroquial. S'exporta i s'importa en JSON per reutilitzar-la entre a
 
 Una fila per caçador i, per a cada zona, dues columnes: la **posició** (o l'etiqueta
 de substitut) i el **tipus de captura**. Més les columnes finals amb els valors
-provisionals de cara a l'any vinent (a l'isard, també `Adjudicat_isard_vedat`). Detall a l'[apartat 11](#11-els-resultats-columnes-i-etiquetes).
+provisionals de cara a l'any vinent (a l'isard, també `Adjudicat_isard_vedat_any_actual`). Detall a l'[apartat 11](#11-els-resultats-columnes-i-etiquetes).
 
 ---
 
@@ -292,14 +294,14 @@ no podia optar a un isard al TCC.
 
 ```mermaid
 flowchart LR
-    A["Any N<br/>guanya un vedat d'isard"] --> B["Resultats N:<br/>Adjudicat_isard_vedat = Sí"]
+    A["Any N<br/>guanya un vedat d'isard"] --> B["Resultats N:<br/>..._any_actual = Sí"]
     B --> C["Any N+1<br/>exclòs de TOTS els vedats d'isard<br/>participa al TCC"]
-    C --> D["Resultats N+1:<br/>Adjudicat_isard_vedat = No"]
+    C --> D["Resultats N+1:<br/>..._any_passat = Sí<br/>..._any_actual = No"]
     D --> E["Any N+2<br/>lliure: pot optar a tot"]
 ```
 
 1. **Any N.** Qui guanya una captura en **qualsevol** vedat d'isard surt amb
-   `Adjudicat_isard_vedat = Sí` als resultats.
+   `Adjudicat_isard_vedat_any_actual = Sí` als resultats.
 2. **Any N+1.** Aquesta columna s'afegeix al CSV de prioritats. Qui hi té `Sí`:
    - **queda fora de tots els vedats d'isard**, tant de les captures com de l'ordre
      de substitució, i al full hi surt **`exclòs (art. 55.1.g)`**;
@@ -310,15 +312,21 @@ flowchart LR
 3. **Any N+2.** Com que l'any N+1 no podia guanyar cap vedat, hi surt `No`: torna a
    poder optar a tot **sense que calgui fer res**. L'exclusió es consumeix sola.
 
+Als resultats de l'any N+1, la columna **`Adjudicat_isard_vedat_any_passat`** repeteix
+el valor d'entrada per a tothom. Serveix per identificar els exclosos que **no s'han
+inscrit a cap vedat** (per exemple, només al TCC): a les columnes de zona no hi tenen
+cap marca `exclòs`, però també hi estan afectats.
+
 > **Exemple.** El caçador A guanya `IS VCE` el 2026. El 2027 s'inscriu a tot: a
 > l'`IS TCC` hi participa amb la seva prioritat (4); a `IS VCRS`, `IS VCX` i `IS VCE`
 > hi surt `exclòs (art. 55.1.g)`. Si no treu el TCC, acaba el 2027 amb prioritat 2 i
-> `Adjudicat_isard_vedat = No`. El 2028 opta al TCC amb prioritat 2.
+> `Adjudicat_isard_vedat_any_actual = No`. El 2028 opta al TCC amb prioritat 2.
 
 ⚠️ **Dues coses que s'han de fer a mà:**
 
 - **Substituts que acaben entrant en un vedat.** Passen a ser adjudicataris, però
-  l'aplicació no sap qui ha entrat. Cal posar-los `Sí` a la columna abans de fer
+  l'aplicació no sap qui ha entrat. Cal posar-los `Sí` a la columna
+  `Adjudicat_isard_vedat_any_actual` abans de fer
   servir el fitxer l'any següent (com ja es fa amb la prioritat 1).
 - **Primer any (sorteig del 2027).** Els resultats del 2026 encara no porten la
   columna: s'ha d'omplir a mà amb els adjudicataris de vedat d'isard del 2026.
@@ -507,6 +515,32 @@ Això vol dir, en un vedat:
 > *Els noms i els números concrets depenen de l'ordre parroquial sortejat; el que
 > és sempre igual és el mecanisme.*
 
+### 9.1 Llista de substitució definitiva
+
+Cada sorteig fa el seu ordre de substitució **sense mirar el que passa als sorteigs
+que venen després**. Així, algú pot ser `s1` a `IS VCRS` i guanyar després una captura
+a `IS VCE`: si hi hagués una baixa a `IS VCRS`, no li hauria de tocar a ell.
+
+Per això, per a cada sorteig hi ha una columna més,
+**`Llista_substitució_definitiva_<zona>`**, al costat de les seves:
+
+- Té els **mateixos substituts** que la columna de la zona, renumerats `s1`, `s2`…
+- Qui **ja ha obtingut una captura en qualsevol altre sorteig** d'aquesta tanda passa
+  **al final de la llista**. Els que passen al final conserven l'ordre entre ells, i
+  la resta també.
+- La marca `(E)` dels estrangers es manté i la regla de l'apartat 8.3 s'aplica igual.
+
+> **Exemple.** A `IS VCRS`, A és `s1`, B és `s2` i C és `s3`. Després, A guanya una
+> captura a `IS VCE`. La llista definitiva d'`IS VCRS` queda B `s1`, C `s2`… i A al
+> final.
+
+Per cobrir baixes cal fer servir **la llista definitiva**. La columna de la zona es
+manté tal com surt del sorteig, perquè es pugui comprovar.
+
+La renumeració només fa canvis quan algú guanya una captura en un sorteig **posterior**:
+qui ja havia guanyat abans entra als sorteigs següents amb prioritat 5 o més, i
+ja queda al final de l'ordre de substitució.
+
 ---
 
 ## 10. Tipus de captura
@@ -545,7 +579,13 @@ I al final del full:
 |---|---|
 | `Nou_Anys_sense_captura` | `0` si ha obtingut alguna captura; si no, l'anterior + 1 |
 | `Nova_prioritat` | Estimació de sortida per a l'any vinent (apartat 12) |
-| `Adjudicat_isard_vedat` | **Només isard.** `Sí` si ha guanyat una captura en algun vedat d'isard. Es copia al CSV de prioritats de l'any vinent (apartat 5.6) |
+| `Llista_substitució_definitiva_<zona>` | Per a cada zona, al costat de les seves columnes: l'ordre de substitució amb els que ja tenen una captura en un altre sorteig al final (apartat 9.1) |
+| `Adjudicat_isard_vedat_any_passat` | **Només isard**, si el CSV de prioritats porta la columna. Còpia del valor d'entrada: `Sí` si l'any anterior va guanyar un vedat i, per tant, aquest any n'està exclòs, encara que no s'hi hagi inscrit (apartat 5.6) |
+| `Adjudicat_isard_vedat_any_actual` | **Només isard.** `Sí` si ha guanyat una captura en algun vedat d'isard aquest any. Es copia al CSV de prioritats de l'any vinent (apartat 5.6) |
+
+El fitxer CSV que es descarrega fa servir `;` com a separador i porta la marca UTF-8
+inicial, perquè l'Excel l'obri directament en columnes i amb els accents bé
+(`Sí`, `exclòs`). L'aplicació també llegeix els CSV desats per l'Excel.
 
 A més, a la pantalla de resultats es mostra:
 
@@ -591,7 +631,7 @@ arribar a fer i quin animal era, i el cens complet de qui no s'ha presentat.
 | **Només queden estrangers i el sostre és ple** | Les captures sobrants queden sense adjudicar; els estrangers reben igualment ordre de substitució `(E)` |
 | **Isard sense la columna `Adjudicat_isard_vedat`** | El sorteig s'executa sense l'exclusió de l'art. 55.1.g i se'n mostra un avís |
 | **Tots els inscrits a un vedat d'isard estan exclosos (art. 55.1.g)** | Ningú no hi rep captura; tots surten `exclòs (art. 55.1.g)` |
-| **Substitut que entra en un vedat d'isard** | L'aplicació no ho sap: cal posar-li `Sí` a mà a `Adjudicat_isard_vedat` |
+| **Substitut que entra en un vedat d'isard** | L'aplicació no ho sap: cal posar-li `Sí` a mà a `Adjudicat_isard_vedat_any_actual` |
 | **Empat exacte al repartiment del cupo** | El desfà l'ordre parroquial sortejat (art. 55.1.b) |
 | **Un vedat d'una sola parròquia** | No hi ha res a sortejar: l'ordre és aquella parròquia i s'endú tot el cupo |
 | **Un vedat sense repartiment parroquial configurat** | Es comporta com una zona sense preferència parroquial |
@@ -636,7 +676,7 @@ Perquè quedi clar el límit del que hi ha automatitzat:
 - **No gestiona les baixes ni les substitucions efectives.** Produeix l'ordre
   (amb la marca `(E)` i la taula del sostre per aplicar l'apartat 8.3); qui entra i
   quan ho decideix el Govern. Per això els substituts que entren en un vedat d'isard
-  s'han de marcar a mà a `Adjudicat_isard_vedat`.
+  s'han de marcar a mà a `Adjudicat_isard_vedat_any_actual`.
 - **No comprova el cens.** Es fia del que digui el CSV de prioritats: parròquia,
   condició d'estranger i prioritat d'entrada.
 - **No emet les llicències** ni cap document administratiu.
@@ -644,5 +684,8 @@ Perquè quedi clar el límit del que hi ha automatitzat:
 ---
 
 *Aplicació desenvolupada per a la Direcció de Medi Ambient. Manual actualitzat el
-6 de novembre del 2026: estrangers reincorporats a l'ordre de substitució amb la
-marca `(E)`, i nova exclusió de l'art. 55.1.g per a l'isard en vedats.*
+11 de novembre del 2026: llista de substitució definitiva per a cada sorteig, columnes
+de l'any passat i de l'any actual per a l'art. 55.1.g, i CSV que l'Excel obre amb els
+accents bé. Actualització anterior (6 de novembre del 2026): estrangers reincorporats
+a l'ordre de substitució amb la marca `(E)`, i nova exclusió de l'art. 55.1.g per a
+l'isard en vedats.*
